@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from enum import IntEnum
 
@@ -18,37 +19,65 @@ class BidType(IntEnum):
         return {
             BidType.LIMIT: "限价委托",
             BidType.MARKET: "市价委托",
-        }
+        }.get(self)
 
 
 class Order:
     def __init__(
         self,
+        request_id: str,
         security: str,
         side: OrderSide,
-        volume: int,
-        price: float = None,
+        shares: int,
+        price: float,
+        order_time: datetime.datetime,
         bid_type: BidType = BidType.MARKET,
     ):
+        self.request_id = request_id
         self.security = security
         self.side = side
-        self.volume = volume
+        self.shares = shares
         self.price = price
         self.bid_type = bid_type
+        self.order_time = order_time
 
-        self.oid = uuid.uuid4()
+    def to_json(self):
+        return {
+            "request_id": self.request_id,
+            "security": self.security,
+            "side": str(self.side),
+            "shares": self.shares,
+            "price": self.price,
+            "bid_type": str(self.bid_type),
+            "order_time": self.order_time.isoformat(),
+        }
 
 
 class Trade:
-    def __init__(self, order: Order, price: float, volume: int):
-        self.order = order
+    def __init__(self, order: Order, price: float, shares: int, fee: float):
+        self.__dict__.update(order.__dict__)
+
         self.price = price
-        self.volume = volume
+        self.shares = shares
+        self.fee = fee
         self.tid = uuid.uuid4()
+
+    def __str__(self):
+        return f"证券代码: {self.security}\n成交方向: {self.side}\n成交均价: {self.price}\n数量: {self.shares}\n手续费: {self.fee}\n委托号: {self.request_id}\n成交号: {self.tid}"
+
+    def to_json(self):
+        d = self.__dict__
+        d["side"] = str(d["side"])
+        d["bid_type"] = str(d["bid_type"])
+        d["order_time"] = d["order_time"].isoformat()
+        d["tid"] = str(d["tid"])
+
+        return d
 
 
 class EntrustError(IntEnum):
     SUCCESS = 0
+    PARTIAL_SUCCESS = 1
     FAILED_GENERIC = -1
     FAILED_NOT_ENOUGH_CASH = -2
     REACH_BUY_LIMIT = -3
@@ -57,6 +86,7 @@ class EntrustError(IntEnum):
     def __str__(self):
         return {
             EntrustError.SUCCESS: "成功委托",
+            EntrustError.PARTIAL_SUCCESS: "部成",
             EntrustError.FAILED_GENERIC: "委托失败",
             EntrustError.FAILED_NOT_ENOUGH_CASH: "资金不足",
             EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入",

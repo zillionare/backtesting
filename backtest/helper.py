@@ -1,6 +1,7 @@
+import datetime
 from enum import Enum
 from functools import wraps
-from typing import Dict, List, Union
+from typing import Any, List, Union
 
 from expiringdict import ExpiringDict
 from sanic import Sanic, response
@@ -30,6 +31,7 @@ def check_duplicated_request(request):
         return False
 
     seen_requests[request_id] = True
+    request.json["request_id"] = request_id
     return True
 
 
@@ -53,12 +55,12 @@ def protected(wrapped):
     return decorator(wrapped)
 
 
-def make_response(err_code: Union[Enum, int], err_msg: str = None, data: dict = None):
+def make_response(err_code: Union[Enum, int], data: Any = None, err_msg: str = None):
     if err_msg is None:
         err_msg = str(err_code)
 
     return {
-        "status": err_code if isinstance(err_code, int) else err_code.value,
+        "status": err_code.value if isinstance(err_code, Enum) else err_code,
         "msg": err_msg,
-        "data": data or "{}",
+        "data": data,
     }

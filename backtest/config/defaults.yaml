@@ -21,3 +21,4 @@ account:
   name: "aaron"
   cash: 1000000
   commission: 0.0001
+  token: "abcd"

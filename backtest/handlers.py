@@ -9,6 +9,11 @@ bp = Blueprint("backtest", url_prefix="/backtest/")
 logger = logging.getLogger(__name__)
 
 
+@bp.route("/api/trade/v0.1/status", methods=["GET"])
+async def status(request):
+    return response.json({"status": "ok"})
+
+
 @bp.route("/api/trade/v0.1/buy", methods=["POST"])
 @protected
 async def buy(request):
@@ -19,8 +24,11 @@ async def buy(request):
     volume = params["volume"]
     timeout = params["timeout"]
     order_time = params["order_time"]
+    request_id = params["request_id"]
 
-    result = await broker.buy(security, price, volume, order_time, timeout)
+    result = await broker.buy(
+        security, price, volume, order_time, request_id=request_id, timeout=timeout
+    )
     return response.json(result)
 
 

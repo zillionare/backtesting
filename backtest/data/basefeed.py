@@ -4,10 +4,10 @@ from functools import lru_cache
 from typing import List, Tuple
 
 import jqdatasdk as jq
+import numpy as np
 from coretypes import Frame, FrameType, SecurityType, bars_dtype
+from omicron.extensions.np import math_round
 from omicron.models.stock import Stock
-
-from backtest.data.zillionarefeed import FileFeed, ZillionareFeed
 
 
 class BaseFeed(ABCMeta):
@@ -21,6 +21,8 @@ class BaseFeed(ABCMeta):
         """
         创建实例
         """
+        from backtest.data.zillionarefeed import FileFeed, ZillionareFeed
+
         if interface == "zillionare":
             feed = ZillionareFeed(**kwargs)
             await feed.init()
@@ -28,21 +30,12 @@ class BaseFeed(ABCMeta):
             feed = FileFeed(**kwargs)
 
     @abstractmethod
-    async def get_bars(
-        self, security: str, ft: FrameType, start: Frame, end: Frame, n: int, fq=True
-    ) -> list:
-        """获取`security`在`start`到`end`之间的`n`个`ft`的bar
-
-        如果`start`, `end`和`n`都存在且冲突，以[start, end]为准
+    async def get_minute_bars(self, security: str, start: Frame) -> list:
+        """获取从`start`之后起当天所有的分钟线，用以撮合
 
         Args:
             security : 证券代码
-            ft : 帧类型
             start : 起始时间
-            end : 结束时间
-            n : 帧数量
-            fq : 是否返回前复权数据.
-
         Returns:
             a numpy array which dtype is `bars_dtype`
         """
@@ -56,3 +49,19 @@ class BaseFeed(ABCMeta):
         return jq.get_bars(
             security, "1m", 1, fields=fields, include_now=True, df=False
         )[0]
+
+    @classmethod
+    def remove_buy_limit_bars(cls, bars: np.ndarray, price: float) -> np.ndarray:
+        """
+        去掉已达到涨停时的分钟线
+        """
+        close = math_round(bars["close"], 2)
+        price = math_round(price, 2)
+        return bars[~(close >= price)]
+
+    @classmethod
+    def remove_sell_limit_bars(cls, bars: np.ndarray, price: float) -> np.ndarray:
+        """去掉已跌停的分钟线"""
+        close = math_round(bars["close"], 2)
+        price = math_round(price, 2)
+        return bars[~(close <= price)]
