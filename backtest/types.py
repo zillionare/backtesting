@@ -78,8 +78,8 @@ class Trade:
 class EntrustError(IntEnum):
     SUCCESS = 0
     PARTIAL_SUCCESS = 1
-    FAILED_GENERIC = -1
-    FAILED_NOT_ENOUGH_CASH = -2
+    GENERIC_ERROR = -1
+    NO_CASH = -2
     REACH_BUY_LIMIT = -3
     REACH_SELL_LIMIT = -4
 
@@ -87,8 +87,8 @@ class EntrustError(IntEnum):
         return {
             EntrustError.SUCCESS: "成功委托",
             EntrustError.PARTIAL_SUCCESS: "部成",
-            EntrustError.FAILED_GENERIC: "委托失败",
-            EntrustError.FAILED_NOT_ENOUGH_CASH: "资金不足",
+            EntrustError.GENERIC_ERROR: "委托失败",
+            EntrustError.NO_CASH: "资金不足",
             EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入",
             EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出",
         }.get(self)

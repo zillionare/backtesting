@@ -76,7 +76,7 @@ class Broker:
 
         shares_to_buy = shares_to_buy // 100 * 100
         if shares_to_buy < 100:
-            return make_response(EntrustError.FAILED_NOT_ENOUGH_CASH)
+            return make_response(EntrustError.NO_CASH)
 
         bars = feed.remove_buy_limit_bars(bars, buy_limit_price)
 
@@ -118,15 +118,15 @@ class Broker:
 
         self._add_position(trade)
 
+        msg = "委托成功"
         if shares_to_buy < shares:
-            msg = "资金余额不足，只能委托{}股".format(shares_to_buy)
+            msg = ",但资金余额不足，只能委托{}股".format(shares_to_buy)
 
         if filled < shares_to_buy:
             status = EntrustError.PARTIAL_SUCCESS
-            msg += "，只能成交{}股".format(filled)
+            msg += "，但只能成交{}股".format(filled)
         else:
             status = EntrustError.SUCCESS
-            msg = None
 
         return make_response(status, data=trade, err_msg=msg)
 

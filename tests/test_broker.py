@@ -2,6 +2,7 @@ import datetime
 import unittest
 from argparse import Namespace
 from unittest import mock
+from xml.dom.minidom import Entity
 
 import numpy as np
 import omicron
@@ -46,27 +47,28 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                     datetime.datetime(2022, 3, 10, 9, 35),
                     request_id="1234abc",
                 )
-                self.assertEqual(result["status"], 0)
+                self.assertEqual(result["status"], EntrustError.SUCCESS)
                 self.assertEqual(result["data"].security, "002537.XSHE")
-                self.assertAlmostEqual(result["data"].price, 9.280280223977718)
+                self.assertAlmostEqual(result["data"].price, 9.1)
                 self.assertEqual(result["data"].shares, 10e4)
                 self.assertEqual(result["data"].fee, 91)
                 self.assertIsNotNone(result["data"].tid)
                 self.assertEqual(result["data"].request_id, "1234abc")
 
                 # partial filled
+                broker.available_cash = 10e10
                 result = await broker.buy(
                     "002537.XSHE",
                     9.43,
-                    5e8,
+                    10e8,  # total available shares: 81840998
                     datetime.datetime(2022, 3, 10, 9, 35),
                     request_id="1234abc",
                 )
-                self.assertEqual(result["status"], 0)
+                self.assertEqual(result["status"], EntrustError.PARTIAL_SUCCESS)
                 self.assertEqual(result["data"].security, "002537.XSHE")
-                self.assertAlmostEqual(result["data"].price, 9.280280223977718)
+                self.assertAlmostEqual(result["data"].price, 9.280280223977718, 2)
                 self.assertEqual(result["data"].shares, 81840998)
-                self.assertEqual(result["data"].fee, 75950.739525)
+                self.assertEqual(result["data"].fee, 75950.739525, 2)
                 self.assertIsNotNone(result["data"].tid)
                 self.assertEqual(result["data"].request_id, "1234abc")
 
@@ -75,12 +77,12 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                     "002537.XSHE", 9.68, 10e4, datetime.datetime(2022, 3, 10, 14, 33)
                 )
 
-                self.assertEqual(result["status"], EntrustError.PRICE_OVER_LIMIT)
+                self.assertEqual(result["status"], EntrustError.REACH_BUY_LIMIT)
 
-                # 资金不足，拆解成部分委托
-                broker.available_cash = 1000
+                # 资金不足,委托失败
+                broker.available_cash = 100
                 result = await broker.buy(
                     "0002537.XSHE", 9.43, 10e4, datetime.datetime(2022, 3, 10, 9, 35)
                 )
 
-                print(result)
+                self.assertEqual(result["status"], EntrustError.NO_CASH)
