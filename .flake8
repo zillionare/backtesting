@@ -20,4 +20,5 @@ exclude =
     .pytest_cache,
     .vscode,
     .github,
+    .history,
     tests

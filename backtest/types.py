@@ -33,7 +33,7 @@ class Order:
         order_time: datetime.datetime,
         bid_type: BidType = BidType.MARKET,
     ):
-        self.request_id = request_id
+        self.request_id = request_id or uuid.uuid4()
         self.security = security
         self.side = side
         self.shares = shares
@@ -55,6 +55,14 @@ class Order:
 
 class Trade:
     def __init__(self, order: Order, price: float, shares: int, fee: float):
+        """Trade对象代表了一笔成交（买入或者卖出）
+
+        Args:
+            order : 对应的委托单
+            price : 成交均价
+            shares : 成交数量（股数）
+            fee : 本单手续费
+        """
         self.__dict__.update(order.__dict__)
 
         self.price = price
@@ -82,6 +90,7 @@ class EntrustError(IntEnum):
     NO_CASH = -2
     REACH_BUY_LIMIT = -3
     REACH_SELL_LIMIT = -4
+    NO_POSITION = -5
 
     def __str__(self):
         return {
@@ -91,4 +100,5 @@ class EntrustError(IntEnum):
             EntrustError.NO_CASH: "资金不足",
             EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入",
             EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出",
+            EntrustError.NO_POSITION: "没有持仓",
         }.get(self)

@@ -1,7 +1,6 @@
 import datetime
 from abc import ABCMeta, abstractmethod
-from functools import lru_cache
-from typing import List, Tuple
+from typing import List
 
 import jqdatasdk as jq
 import numpy as np
@@ -39,7 +38,7 @@ class BaseFeed(ABCMeta):
         Returns:
             a numpy array which dtype is `bars_dtype`
         """
-        pass
+        raise NotImplementedError
 
     async def get_price(self, security: str) -> bars_dtype:
         """ "
@@ -49,6 +48,12 @@ class BaseFeed(ABCMeta):
         return jq.get_bars(
             security, "1m", 1, fields=fields, include_now=True, df=False
         )[0]
+
+    async def get_close_price(self, secs: List[str], date: datetime.date) -> float:
+        """
+        获取证券品种在`date`日期的收盘价
+        """
+        raise NotImplementedError
 
     @classmethod
     def remove_buy_limit_bars(cls, bars: np.ndarray, price: float) -> np.ndarray:
