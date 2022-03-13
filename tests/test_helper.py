@@ -2,7 +2,8 @@ import datetime
 import unittest
 
 from backtest.helper import make_response
-from backtest.types import EntrustError, Order, OrderSide, Trade
+from backtest.trade import Trade
+from backtest.types import Entrust, EntrustError, EntrustSide
 
 
 class HelperTest(unittest.TestCase):
@@ -12,7 +13,7 @@ class HelperTest(unittest.TestCase):
 
         now = datetime.datetime.now()
 
-        order = Order("request_id", "security", OrderSide.BUY, 100, 9.2, now)
+        order = Entrust("request_id", "security", EntrustSide.BUY, 100, 9.2, now)
 
         trade = Trade(order, 1.0, 100, 0.5)
 

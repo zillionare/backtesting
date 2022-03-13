@@ -33,3 +33,8 @@ class Config(object):
 
     class redis:
         dsn: Optional[str] = None
+
+    class postgres:
+        dsn: Optional[str] = None
+
+        enabled: Optional[bool] = None

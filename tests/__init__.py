@@ -94,3 +94,7 @@ async def post(cmd: str, data):
                 return await resp.json()
     except Exception:
         return None
+
+
+def data_dir():
+    return os.path.join(os.path.dirname(__file__), "data")

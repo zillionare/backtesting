@@ -9,7 +9,7 @@ from sanic import Sanic
 
 from backtest.broker import Broker
 from backtest.config import get_config_dir
-from backtest.data.basefeed import BaseFeed
+from backtest.feed.basefeed import BaseFeed
 
 app = Sanic("backtest")
 logger = logging.getLogger(__name__)

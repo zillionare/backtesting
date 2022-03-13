@@ -1,2 +1,5 @@
 redis:
   dsn: redis://localhost:6379
+postgres:
+  dsn: postgres://zillionare:123456@localhost:5432/zillionare
+  enabled: true
