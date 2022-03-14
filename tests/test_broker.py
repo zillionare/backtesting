@@ -6,6 +6,8 @@ from unittest import mock
 import cfg4py
 import numpy as np
 import omicron
+from black import E
+from omicron.extensions.np import math_round
 from sanic import Sanic
 
 from backtest.broker import Broker
@@ -13,7 +15,7 @@ from backtest.config import get_config_dir
 from backtest.feed.filefeed import FileFeed
 from backtest.helper import get_app_context
 from backtest.trade import Trade
-from backtest.types import BidType, Entrust, EntrustError, EntrustSide
+from backtest.types import BidType, Entrust, EntrustError, EntrustSide, position_dtype
 from tests import data_dir
 
 app = Sanic("backtest")
@@ -34,23 +36,46 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         return await super().asyncSetUp()
 
-    def check_order_result(self, actual, status, sec, price, shares, commission):
+    def _check_positions(self, exp, actual):
+        self.assertSetEqual(set(exp["security"]), set(actual["security"]))
+
+        for sec in exp["security"]:
+            a = exp[exp["security"] == sec]
+            b = actual[actual["security"] == sec]
+            self.assertAlmostEqual(a["shares"][0], b["shares"][0], 2)
+            self.assertAlmostEqual(a["cost"][0], b["cost"][0], 2)
+
+    def _check_order_result(self, actual, status, sec, price, shares, commission):
         self.assertEqual(actual["status"], status)
-        self.assertEqual(actual["data"]["security"], sec)
-        self.assertAlmostEqual(actual["data"]["price"], price)
-        self.assertEqual(actual["data"]["shares"], shares)
-        self.assertEqual(actual["data"]["fee"], price * shares * commission)
-        self.assertIsNotNone(actual["data"]["tid"])
 
-    def check_balance(self, broker, cash, assets, positions):
+        if isinstance(sec, set):
+            self.assertSetEqual(set([v["security"] for v in actual["data"]]), sec)
+        else:
+            self.assertEqual(actual["data"]["security"], sec)
+
+        # exit price would be same
+        if isinstance(actual["data"], list):
+            for v in actual["data"]:
+                self.assertAlmostEqual(v["price"], price, 2)
+
+            sum_shares = np.sum([v["shares"] for v in actual["data"]])
+            self.assertEqual(sum_shares, shares)
+            sum_fee = np.sum([v["fee"] for v in actual["data"]])
+            self.assertEqual(sum_fee, price * shares * commission)
+        else:
+            self.assertAlmostEqual(actual["data"]["price"], price, 2)
+
+            self.assertEqual(actual["data"]["shares"], shares)
+            self.assertAlmostEqual(
+                actual["data"]["fee"], price * shares * commission, 2
+            )
+
+    def _check_balance(self, broker, cash, assets, positions: np.ndarray):
         self.assertAlmostEqual(broker.cash, cash)
-        self.assertAlmostEqual(broker.current_assets, assets, 2)
-        self.assertEqual(len(broker.current_positions), len(positions))
+        self.assertAlmostEqual(broker.assets, assets, 2)
+        self.assertEqual(len(broker.positions), len(positions))
 
-        for key, value in broker.current_positions.items():
-            self.assertEqual(value[0], positions[key][0])
-            self.assertAlmostEqual(value[1], positions[key][1], 2)
-            self.assertEqual(value[2], positions[key][2])
+        self._check_positions(positions, broker.positions)
 
     async def test_buy(self):
         global bars
@@ -67,7 +92,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
 
         price1, shares1, close_price_of_the_day = 9.324918623206482, 29265100.0, 9.68
-        self.check_order_result(
+        self._check_order_result(
             result, EntrustError.PARTIAL_SUCCESS, hljh, price1, shares1, commission
         )
 
@@ -76,8 +101,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         mv = shares1 * close_price_of_the_day  # market_value
         assets = cash + mv
-        positions = {hljh: [hljh, shares1, price1]}
-        self.check_balance(broker, cash, assets, positions)
+        positions = np.array([(hljh, shares1, price1)], dtype=position_dtype)
+        self._check_balance(broker, cash, assets, positions)
 
         # 委买当笔即全部成交
         start_cash = broker.cash  # 9240417581.183184
@@ -91,18 +116,18 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         price2, shares2, close_price_of_the_day = 9.12, 1e5, 9.68
 
-        self.check_order_result(
+        self._check_order_result(
             result, EntrustError.SUCCESS, hljh, price2, shares2, commission
         )
 
         shares = shares1 + shares2
         price = (price1 * shares1 + price2 * shares2) / shares
-        positions = {hljh: [hljh, shares, price]}
+        positions = np.array([(hljh, shares, price)], dtype=position_dtype)
 
         cash = start_cash - price2 * shares2 * (1 + commission)
         assets = cash + shares * close_price_of_the_day
 
-        self.check_balance(broker, cash, assets, positions)
+        self._check_balance(broker, cash, assets, positions)
 
         # 买入时已经涨停
         result = await broker.buy(
@@ -169,7 +194,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker.trades[trade.tid] = trade
         broker._append_unclosed_trades(trade.tid, datetime.date(2022, 3, 3))
 
-        positions = broker.current_positions
+        positions = broker.positions
         self.assertEqual(1, len(positions))
         self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0])
 
@@ -185,7 +210,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker.trades[trade.tid] = trade
         broker._append_unclosed_trades(trade.tid, datetime.date(2022, 3, 9))
 
-        positions = broker.current_positions
+        positions = broker.positions
 
         self.assertEqual(2, len(positions))
         if positions[0][0] == "603717.XSHG":
@@ -232,43 +257,73 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(hljh, 8.95, 1000, datetime.datetime(2022, 3, 9, 9, 40))
         await broker.buy(hljh, 9.09, 1000, datetime.datetime(2022, 3, 10, 9, 33))
 
-        # 可用余额足够，当前买单足够
         price, shares, time = 12.98, 1100, datetime.datetime(2022, 3, 10, 9, 35)
+
+        # 可用余额足够，买单足够，close部分
         result = await broker.sell(tyst, price, shares, time)
 
         self.assertEqual(6, len(broker.trades))
-        self.assertEqual(3, len(broker._unclosed_trades))
-        exit_price, sold_shares = (13.83, 1100)
-        result["data"] = result["data"][0]
-        self.check_order_result(
+        self.assertEqual(4, len(broker._unclosed_trades))
+        exit_price, sold_shares = (13.57, 1100)
+        self._check_order_result(
             result,
             EntrustError.SUCCESS,
-            tyst,
+            {tyst},
             exit_price,
             sold_shares,
             broker.commission,
         )
 
-        # 可用余额足够，当前买单不足
-        order = Entrust(
-            None,
-            tyst,
-            EntrustSide.BUY,
-            3 * 10e5,
-            9,
-            datetime.datetime(2022, 3, 9, 9, 35),
-            BidType.LIMIT,
+        pos = np.array([(tyst, 400, 14.79), (hljh, 2000, 9.02)], position_dtype)
+        self._check_positions(broker.positions, pos)
+        self.assertAlmostEqual(998964.975, broker.assets, 2)
+        self.assertAlmostEqual(974672.975, broker.cash, 2)
+
+        # 可用余额不足: 尝试卖出当天买入的部分
+        bid_price, bid_shares, bid_time = (
+            14.3,
+            400,
+            datetime.datetime(2022, 3, 7, 14, 26),
         )
-        trade = Trade(order, 10, 3 * 10e8, 5.8)
-        broker.positions = {tyst: [trade]}
-        broker.cash = 0
+        result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
+        self.assertEqual(EntrustError.NO_POSITION, result["status"])
+
+        # 跌停板不能卖出
+        bid_price, bid_shares, bid_time = (
+            12.33,
+            400,
+            datetime.datetime(2022, 3, 10, 14, 55),
+        )
+        result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
+        self.assertEqual(EntrustError.REACH_SELL_LIMIT, result["status"])
+
+        # 余额不足： 尽可能卖出
+        bid_price, bid_shares, bid_time = (
+            12.33,
+            1100,
+            datetime.datetime(2022, 3, 10, 9, 35),
+        )
+        result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
+
+        positions = np.array([("002537.XSHE", 2000.0, 9.02)], position_dtype)
+        self._check_positions(broker.positions, positions)
+        self.assertAlmostEqual(999_460.975, broker.assets, 2)
+        self.assertAlmostEqual(980_100.975, broker.cash, 2)
+        self.assertAlmostEqual(999_460.98 - 980_100.98, 2000 * 9.68, 2)
+
+        # 成交量不足撮合委卖
+        broker = Broker("test", 1e10, 1e-4)
+
+        await broker.buy(tyst, 14.84, 1e8, datetime.datetime(2022, 3, 7, 9, 41))
+        self._check_positions(
+            broker.positions, np.array([(tyst, 802700, 14.79160334)], position_dtype)
+        )
 
         result = await broker.sell(
-            tyst, 12.33, 3 * 10e6, datetime.datetime(2022, 3, 10, 9, 35)
+            tyst, 12.33, 1e8, datetime.datetime(2022, 3, 10, 9, 35)
         )
-        self.assertEqual(result["status"], EntrustError.SUCCESS)
-        self.assertEqual(broker.cash, 62907806.59, 2)
 
-        # 可用余额不足，当前买单足够
-
-        # 持股数够，但可用余额不足
+        self.assertEqual(EntrustError.SUCCESS, result["status"])
+        self.assertEqual(0, len(broker.positions))
+        self.assertAlmostEqual(9_998_679_478.68, broker.assets, 2)
+        self.assertAlmostEqual(broker.cash, broker.assets, 2)

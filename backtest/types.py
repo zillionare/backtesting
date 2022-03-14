@@ -32,7 +32,7 @@ class Entrust:
         bid_time: datetime.datetime,
         bid_type: BidType = BidType.MARKET,
     ):
-        self.eid = uuid.uuid4()  # the contract id
+        self.eid = str(uuid.uuid4())  # the contract id
         self.security = security
         self.side = side
         self.bid_type = bid_type
@@ -71,3 +71,6 @@ class EntrustError(IntEnum):
             EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出",
             EntrustError.NO_POSITION: "没有持仓",
         }.get(self)
+
+
+position_dtype = [("security", "O"), ("shares", "<f8"), ("cost", "<f8")]

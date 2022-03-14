@@ -1,14 +1,17 @@
 import datetime
+import logging
 import uuid
 
 from backtest.transaction import Transaction
 from backtest.types import EntrustSide
 
+logger = logging.getLogger(__name__)
+
 
 class Trade:
     def __init__(
         self,
-        eid: uuid.UUID,
+        eid: str,
         security: str,
         price: float,
         shares: int,
@@ -27,7 +30,7 @@ class Trade:
             time: 买入时间
         """
         self.eid = eid
-        self.tid = uuid.uuid4()
+        self.tid = str(uuid.uuid4())
         self.security = security
 
         self.fee = fee
@@ -86,6 +89,7 @@ class Trade:
             self._unamortized_fee -= amortized_buy_fee
 
             if self._unsell == 0:
+                logger.debug("交易%s (%s)已close.", self.security, self.tid)
                 self.closed = True
 
             trade = Trade(

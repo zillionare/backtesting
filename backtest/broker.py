@@ -1,16 +1,18 @@
 import datetime
+import logging
 from typing import Dict, List, Tuple
 
 import numpy as np
 from coretypes import FrameType
 from omicron.extensions.np import math_round
-from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.errors import BadParameterError
 from backtest.helper import get_app_context, make_response
 from backtest.trade import Trade
-from backtest.types import BidType, Entrust, EntrustError, EntrustSide
+from backtest.types import BidType, Entrust, EntrustError, EntrustSide, position_dtype
+
+logger = logging.getLogger(__name__)
 
 
 class Broker:
@@ -29,7 +31,7 @@ class Broker:
         # 初始本金
         self.capital = capital
         self.cash = capital  # 当前可用资金
-        self.assets = {}  # 每日总资产, 包括本金和持仓资产
+        self._assets = {}  # 每日总资产, 包括本金和持仓资产
         self._unclosed_trades = {}  # 未平仓的交易
 
         # 委托列表，包括废单和未成交委托
@@ -90,33 +92,58 @@ class Broker:
                 shares += trade._unsell
                 positions[sec] = (shares, price)
 
-        return [(sec, shares, price) for sec, (shares, price) in positions.items()]
+        return np.array(
+            [(sec, shares, price) for sec, (shares, price) in positions.items()],
+            dtype=position_dtype,
+        )
 
     @property
-    def current_assets(self):
-        days = sorted(list(self.assets.keys()))
+    def assets(self) -> float:
+        """当前总资产。
+
+        如果要获取历史上某天的总资产，请使用`get_assets`方法。
+        """
+        days = sorted(list(self._assets.keys()))
 
         if len(days) == 0:
             return self.capital
 
-        return self.assets[days[-1]]
+        return self._assets[days[-1]]
+
+    def get_assets(self, date: datetime.date) -> float:
+        days = sorted(list(self._assets.keys()))
+
+        if len(days) == 0 or date < days[0]:
+            return self.capital
+
+        pos = np.argwhere(date >= days)[0]
+
+        dt = days[pos]
+        return self._assets[dt]
 
     @property
-    def current_positions(self):
+    def positions(self):
+        """获取当前持仓
+
+        如果要获取历史上某天的持仓，请使用`get_positions`方法。
+
+        Returns:
+            返回成员为(security, shares, price)的numpy structure array
+        """
         days = sorted(self._unclosed_trades.keys())
 
         if len(days) == 0:
-            return []
+            return np.array([], dtype=position_dtype)
 
         return self.get_positions(days[-1])
 
     def __str__(self):
         s = (
             f"账户：{self.account_name}:\n"
-            + f"    总资产：{self.current_assets}\n"
-            + f"    本金：{self.capital}\n"
-            + f"    可用资金：{self.cash}\n"
-            + f"    持仓：{self.current_positions}\n"
+            + f"    总资产：{self.assets:,.2f}\n"
+            + f"    本金：{self.capital:,.2f}\n"
+            + f"    可用资金：{self.cash:,.2f}\n"
+            + f"    持仓：{self.positions}\n"
         )
 
         return s
@@ -162,6 +189,14 @@ class Broker:
             BidType.LIMIT if bid_price is not None else BidType.MARKET,
         )
 
+        logger.info(
+            "买入委托(%s): %s %d %.2f, 单号：%s",
+            bid_time,
+            security,
+            bid_shares,
+            bid_price,
+            en.eid,
+        )
         self.entrusts[en.eid] = en
 
         _, buy_limit_price, _ = await feed.get_trade_price_limits(security, bid_time)
@@ -173,6 +208,7 @@ class Broker:
 
         # 排除在涨停板上买入的情况
         if self._reached_trade_price_limits(bars, bid_time, buy_limit_price):
+            logger.info("撮合失败: %s(%s)挂单时已达到涨停板", security, en.eid)
             return make_response(EntrustError.REACH_BUY_LIMIT)
 
         # 将买入数限制在可用资金范围内
@@ -183,6 +219,7 @@ class Broker:
         # 必须以手为单位买入，否则委托会失败
         shares_to_buy = shares_to_buy // 100 * 100
         if shares_to_buy < 100:
+            logger.info("委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid)
             return make_response(EntrustError.NO_CASH)
 
         bars = self._remove_for_buy(bars, bid_price, buy_limit_price)
@@ -241,20 +278,20 @@ class Broker:
         Args:
             trades: 交易列表
         """
-        unclosed = self._unclosed_trades.get(date, set())
+        unclosed = self._unclosed_trades.get(date, [])
         if len(unclosed):
-            unclosed.add(tid)
+            unclosed.append(tid)
 
             return
 
         if len(self._unclosed_trades) == 0:
-            self._unclosed_trades[date] = {tid}
+            self._unclosed_trades[date] = [tid]
             return
 
         # 记录还未创建，需要复制前一日记录
         self._fillup_unclosed_trades(date)
 
-        self._unclosed_trades[date].add(tid)
+        self._unclosed_trades[date].append(tid)
 
     async def _fill_buy_order(
         self, en: Entrust, price: float, filled: float, close_time: datetime.datetime
@@ -265,6 +302,16 @@ class Broker:
         trade = Trade(en.eid, en.security, price, filled, fee, en.side, close_time)
         self.trades[trade.tid] = trade
         self._append_unclosed_trades(trade.tid, close_time.date())
+
+        logger.info(
+            "买入成交(%s): %s %d %.2f,委单号: %s, 成交号: %s",
+            close_time,
+            en.security,
+            filled,
+            price,
+            en.eid,
+            trade.tid,
+        )
 
         # 当发生新的买入时，更新资产
         cash_change = -1 * (money + fee)
@@ -301,7 +348,11 @@ class Broker:
         for sec, shares, _ in positions:
             market_value += closes[sec] * shares
 
-        self.assets[date] = self.cash + market_value
+        self._assets[date] = self.cash + market_value
+        logger.info(
+            f"资产更新({date})<总资产:{self.assets:,.2f} 可用:{self.cash:,.2f} 本金:{self.capital:,.2f}>"
+        )
+        logger.info("持仓: \n%s", positions)
 
     async def _fill_sell_order(self, en: Entrust, price: float, to_sell: float) -> Dict:
         """从positions中扣减股票、增加可用现金
@@ -338,6 +389,16 @@ class Broker:
                 to_sell, fee, exit_trade, tx = trade.sell(
                     to_sell, price, fee, en.bid_time
                 )
+
+                logger.info(
+                    "卖出成交(%s): %s %d %.2f,委单号: %s, 成交号: %s",
+                    exit_trade.time,
+                    en.security,
+                    exit_trade.shares,
+                    exit_trade.price,
+                    en.eid,
+                    exit_trade.tid,
+                )
                 exit_trades.append(exit_trade)
                 self.trades[exit_trade.tid] = exit_trade
                 self.transactions.append(tx)
@@ -349,7 +410,7 @@ class Broker:
             else:  # no more unclosed trades, even if to_sell > 0
                 break
 
-        unclosed_trades = set(unclosed_trades) - set(closed_trades)
+        unclosed_trades = [tid for tid in unclosed_trades if tid not in closed_trades]
         self._unclosed_trades[dt] = unclosed_trades
 
         # 扣除卖出费用
@@ -369,19 +430,17 @@ class Broker:
     async def sell(
         self,
         security: str,
-        price: float,
+        bid_price: float,
         bid_shares: int,
-        order_time: datetime.datetime,
-        request_id: str = None,
+        bid_time: datetime.datetime,
     ) -> Dict:
         """卖出委托
 
         Args:
             security : 委托证券代码
             price : 出售价格，如果为None，则为市价委托
-            shares_asked : 询卖股数
-            order_time: 委托时间
-            request_id: 请求ID
+            bid_shares : 询卖股数
+            bid_time: 委托时间
 
         Returns:
             {
@@ -394,27 +453,33 @@ class Broker:
         """
         feed = get_app_context().feed
 
-        _, _, sell_limit_price = await feed.get_trade_price_limits(security, order_time)
+        logger.info("卖出委托(%s): %s %s %s", bid_time, security, bid_price, bid_shares)
+        _, _, sell_limit_price = await feed.get_trade_price_limits(security, bid_time)
 
-        if price is None:
+        if bid_price is None:
             bid_type = BidType.MARKET
-            price = sell_limit_price
+            bid_price = sell_limit_price
         else:
             bid_type = BidType.LIMIT
 
         # fill the order, get mean price
-        bars = await feed.get_bars_for_match(security, order_time)
+        bars = await feed.get_bars_for_match(security, bid_time)
 
-        if self._reached_trade_price_limits(bars, order_time, sell_limit_price):
+        if self._reached_trade_price_limits(bars, bid_time, sell_limit_price):
+            logger.info("撮合失败: (%s)，不能在跌停板上卖出。", security)
             return make_response(EntrustError.REACH_SELL_LIMIT)
 
-        bars = self._remove_for_sell(bars, price, sell_limit_price)
+        bars = self._remove_for_sell(bars, bid_price, sell_limit_price)
 
         c, v = bars["close"], bars["volume"]
 
         cum_v = np.cumsum(v)
 
-        shares_to_sell = self._get_sellable_shares(security, bid_shares, order_time)
+        shares_to_sell = self._get_sellable_shares(security, bid_shares, bid_time)
+        if shares_to_sell == 0:
+            logger.info("卖出失败: %s %s %s, 可用股数为0", security, bid_shares, bid_time)
+            return make_response(EntrustError.NO_POSITION)
+
         # until i the order can be filled
         where_total_filled = np.argwhere(cum_v >= shares_to_sell)
         if len(where_total_filled) == 0:
@@ -422,6 +487,7 @@ class Broker:
         else:
             i = np.min(where_total_filled)
 
+        close_time = bars[i]["frame"]
         # 也许到当天结束，都没有足够的股票
         filled = min(cum_v[i], shares_to_sell)
 
@@ -436,15 +502,23 @@ class Broker:
             security,
             EntrustSide.SELL,
             bid_shares,
-            price,
-            order_time,
+            bid_price,
+            bid_time,
             bid_type,
         )
 
+        logger.info(
+            "委卖%s(%s), 成交%d股，均价%.2f, 成交时间%s",
+            en.security,
+            en.eid,
+            filled,
+            mean_price,
+            close_time,
+        )
         return await self._fill_sell_order(en, mean_price, filled)
 
     def _get_sellable_shares(
-        self, security: str, shares_asked: int, order_time: datetime.datetime
+        self, security: str, shares_asked: int, bid_time: datetime.datetime
     ) -> int:
         """获取可卖股数
 
@@ -455,9 +529,9 @@ class Broker:
             可卖股数
         """
         shares = 0
-        for tid in self.get_unclosed_trades(order_time.date()):
+        for tid in self.get_unclosed_trades(bid_time.date()):
             t = self.trades[tid]
-            if t.security == security and t.time.date() < order_time.date():
+            if t.security == security and t.time.date() < bid_time.date():
                 assert t.closed is False
                 shares += t._unsell
 
