@@ -1,13 +1,11 @@
 import datetime
 import os
 import unittest
-from unittest import mock
 
 import cfg4py
 import numpy as np
 import omicron
-from black import E
-from omicron.extensions.np import math_round
+from omicron.models.timeframe import TimeFrame as tf
 from sanic import Sanic
 
 from backtest.broker import Broker
@@ -26,11 +24,14 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         global app
         cfg4py.init(get_config_dir())
 
-        await omicron.init()
+        try:
+            await omicron.init()
+        except Exception:
+            tf.service_degrade()
 
         self.ctx = get_app_context()
-        match_bars_file = os.path.join(data_dir(), "bars_match.pkl")
-        price_limits_file = os.path.join(data_dir(), "price_limits.pkl")
+        match_bars_file = os.path.join(data_dir(), "bars_1m.pkl")
+        price_limits_file = os.path.join(data_dir(), "limits.pkl")
         self.ctx.feed = FileFeed(match_bars_file, price_limits_file)
         await self.ctx.feed.init()
 
@@ -157,12 +158,12 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         positions = broker.get_positions(datetime.date(2022, 3, 3))
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0])
+        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
 
         positions = broker.get_positions(datetime.date(2022, 3, 7))
         self.assertEqual(3, len(broker._unclosed_trades))
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0])
+        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
 
         trade = Trade(
             2, "603717.XSHG", 1.0, 1000, 50, EntrustSide.BUY, datetime.date(2022, 3, 8)
@@ -181,9 +182,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(2, len(positions))
         if positions[0][0] == "603717.XSHG":
-            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[0])
+            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[0].tolist())
         else:
-            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[1])
+            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[1].tolist())
 
     async def test_current_positions(self):
         broker = Broker("test", 1e10, 1e-4)
@@ -196,7 +197,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         positions = broker.positions
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0])
+        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
 
         trade = Trade(
             2, "603717.XSHG", 1.0, 1000, 50, EntrustSide.BUY, datetime.date(2022, 3, 8)
@@ -214,9 +215,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(2, len(positions))
         if positions[0][0] == "603717.XSHG":
-            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[0])
+            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[0].tolist())
         else:
-            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[1])
+            self.assertTupleEqual(("603717.XSHG", 2000, 1.5), positions[1].tolist())
 
     async def test_get_unclosed_trades(self):
         broker = Broker("test", 1e10, 1e-4)
@@ -224,9 +225,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(broker.get_unclosed_trades(datetime.date(2022, 3, 3))))
 
         broker._append_unclosed_trades(0, datetime.date(2022, 3, 3))
-        self.assertSetEqual({0}, broker.get_unclosed_trades(datetime.date(2022, 3, 3)))
+        self.assertListEqual([0], broker.get_unclosed_trades(datetime.date(2022, 3, 3)))
 
-        self.assertSetEqual({0}, broker.get_unclosed_trades(datetime.date(2022, 3, 4)))
+        self.assertListEqual([0], broker.get_unclosed_trades(datetime.date(2022, 3, 4)))
         self.assertEqual(2, len(broker._unclosed_trades))
 
     async def test_append_unclosed_trades(self):
@@ -243,9 +244,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             broker._append_unclosed_trades(i, dt)
 
         self.assertEqual(6, len(broker._unclosed_trades))
-        self.assertSetEqual({0}, broker._unclosed_trades[datetime.date(2022, 3, 3)])
-        self.assertSetEqual(
-            {0, 1, 2, 3}, broker._unclosed_trades[datetime.date(2022, 3, 10)]
+        self.assertListEqual([0], broker._unclosed_trades[datetime.date(2022, 3, 3)])
+        self.assertListEqual(
+            [0, 1, 2, 3], broker._unclosed_trades[datetime.date(2022, 3, 10)]
         )
 
     async def test_sell(self):

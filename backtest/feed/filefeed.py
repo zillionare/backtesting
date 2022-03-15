@@ -2,9 +2,7 @@ import datetime
 import logging
 import os
 import pickle
-from typing import Dict, List
-
-from coretypes import Frame, FrameType, SecurityType, bars_dtype
+from typing import Dict, List, Tuple, Union
 
 from backtest.feed.basefeed import BaseFeed
 
@@ -22,7 +20,7 @@ class FileFeed(BaseFeed):
 
         数据文件必须为pkl，撮合数据文件应该是一个dict，key为security，value为dtype为[('frame', 'O'), ('close', '<f8'), ('volume', '<f8')]的numpy array, 如果value中包含其它字段，也是允许的。为提供更好的撮合，建议数据的时间粒度为分钟级别，但也允许最高使用日线。当指定为分钟级别（可以是1分钟或者多分钟）时，应该包括15:00收盘的那一帧。如果为日线，frame的数据类型应该为datetime.date。
 
-        涨停跌数据文件应该是一个dict，key为security，value为dtype为[('frame', 'O'), ('close', '<f8'), ('volume', '<f8')]的numpy array, 其中`frame`类型为datetime.date。如果value中包含其它字段，也是允许的。
+        涨停跌数据文件应该是一个dict，key为security，value为dtype为[('frame', 'O'), ('high_limit', '<f8'), ('low_limit', '<f8')]的numpy array, 其中`frame`类型为datetime.date。如果value中包含其它字段，也是允许的。
 
         Args:
             bars_for_match_path : 撮合分钟线数据路径
@@ -62,8 +60,8 @@ class FileFeed(BaseFeed):
         return bars[(bars["frame"] >= start) & (bars["frame"] <= end_of_day)]
 
     async def get_close_price(
-        self, secs: List[str], date: datetime.date
-    ) -> Dict[str, float]:
+        self, secs: Union[str, List[str]], date: datetime.date
+    ) -> Union[float, Dict[str, float]]:
         if self.is_day_level:
             end_of_day = date
         else:
@@ -86,7 +84,9 @@ class FileFeed(BaseFeed):
 
         return result
 
-    async def get_trade_price_limits(self, sec: str, date: datetime.date) -> float:
+    async def get_trade_price_limits(
+        self, sec: str, date: datetime.date
+    ) -> Tuple[datetime.date, float, float]:
         if getattr(date, "date", None) is not None:
             date = date.date()
 

@@ -8,8 +8,8 @@ from tests import data_dir
 
 class FileFeedTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        match_path = os.path.join(data_dir(), "bars_match.pkl")
-        limits_path = os.path.join(data_dir(), "price_limits.pkl")
+        match_path = os.path.join(data_dir(), "bars_1m.pkl")
+        limits_path = os.path.join(data_dir(), "limits.pkl")
 
         self.feed = FileFeed(match_path, limits_path)
         await self.feed.init()
