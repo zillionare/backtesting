@@ -60,7 +60,7 @@ def start(port: int = 7080):
         print("backtest server已经启动")
         return
 
-    subprocess.Popen(
+    process = subprocess.Popen(
         [sys.executable, "-m", "backtest.app", "start", f"--port={port}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -72,6 +72,14 @@ def start(port: int = 7080):
         if pid is not None:
             print(f"backtest server启动成功(pid<{pid}>),耗时{i * 0.1}秒")
             return
+
+        if process.poll() is not None:
+            # already exit, due to finish or fail
+            out, err = process.communicate()
+            logger.warning(
+                "subprocess exited, %s: %s", process.pid, out.decode("utf-8")
+            )
+            raise subprocess.SubprocessError(err.decode("utf-8"))
     else:
         print("backtest server启动超时或者失败。")
 

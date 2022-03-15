@@ -33,7 +33,7 @@ def find_free_port():
         return port
 
 
-async def start_backtest(timeout=60):
+async def start_backtest_server(timeout=60):
     global port
 
     port = find_free_port()
@@ -43,7 +43,7 @@ async def start_backtest(timeout=60):
     # jq.auth(account, password)
 
     process = subprocess.Popen(
-        [sys.executable, "-m", "backtest.backtest", "start"],
+        [sys.executable, "-m", "backtest.app", "start", f"--port={port}"],
         env=os.environ,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -73,7 +73,7 @@ async def start_backtest(timeout=60):
 
 
 async def is_backtest_server_alive(port):
-    url = f"http://localhost:{port}/api/trade/v0.1/status"
+    url = f"http://localhost:{port}/backtest/api/trade/v0.1/status"
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -86,10 +86,10 @@ async def is_backtest_server_alive(port):
 async def post(cmd: str, data):
     global port
 
-    url = f"http://localhost:{port}/api/trade/v0.1/{cmd}"
+    url = f"http://localhost:{port}/backtest/api/trade/v0.1/{cmd}"
 
     headers = {
-        "Authorization": f"Token {cfg.account.token}",
+        "Authorization": f"Token {cfg.accounts[0]['token']}",
         "Request-ID": uuid.uuid4().hex,
     }
     try:

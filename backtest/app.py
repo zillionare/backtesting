@@ -1,15 +1,15 @@
 """Main module."""
-import asyncio
 import logging
 
 import cfg4py
+import fire
 import omicron
 from omicron.models.timeframe import TimeFrame
 from sanic import Sanic
 
+from backtest.api import bp
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
-from backtest.handlers import bp
 
 app = Sanic("backtest")
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ async def application_init(app, *args):
 
 
 def start(port: int = 7080):
+    logger.info("start backtest server at port %s", port)
     cfg4py.init(get_config_dir())
 
     app.blueprint(bp)
@@ -36,4 +37,5 @@ def start(port: int = 7080):
 
 
 if __name__ == "__main__":
-    start()
+    # important! we use this to mimic start a module as a script
+    fire.Fire({"start": start})

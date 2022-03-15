@@ -9,7 +9,7 @@ bp = Blueprint("backtest", url_prefix="/backtest/")
 logger = logging.getLogger(__name__)
 
 
-@bp.route("/api/trade/v0.1/status", methods=["GET"])
+@bp.route("/api/trade/v0.1/status", methods=["GET", "POST"])
 async def status(request):
     return response.json({"status": "ok"})
 
