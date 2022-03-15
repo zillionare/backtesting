@@ -3,7 +3,7 @@ import logging
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.helper import broker, protected
+from backtest.helper import protected
 
 bp = Blueprint("backtest", url_prefix="/backtest/")
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ async def buy(request):
     order_time = params["order_time"]
     request_id = params["request_id"]
 
-    result = await broker.buy(
+    result = await request.broker.buy(
         security, price, volume, order_time, request_id=request_id, timeout=timeout
     )
     return response.json(result)
@@ -43,5 +43,5 @@ async def sell(request):
     timeout = params["timeout"]
     order_time = params["order_time"]
 
-    result = await broker.sell(security, price, volume, order_time, timeout)
+    result = await request.broker.sell(security, price, volume, order_time, timeout)
     return response.json(result)

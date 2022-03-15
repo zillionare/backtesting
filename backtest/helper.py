@@ -1,12 +1,19 @@
-import datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, List, Union
+from typing import Any, Union
 
 from expiringdict import ExpiringDict
 from sanic import Sanic, response
 
 seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
+
+
+def get_account_info(token: str):
+    app = Sanic.get_app("backtest")
+
+    for item in app.ctx.cfg.accounts:
+        if item["token"] == token:
+            return item["name"], item["cash"], item["commission"]
 
 
 def get_app_context():
@@ -19,8 +26,15 @@ def check_token(request):
         return False
 
     app = Sanic.get_app("backtest")
+
     if request.token != app.ctx.cfg.account.token:
         return False
+
+    if request.broker is None:
+        account, cash, commission = get_account_info(request.token)
+        from backtest.broker import Broker
+
+        request.broker = Broker(account, cash, commission)
 
     return True
 

@@ -22,14 +22,7 @@ class Config(object):
     def __init__(self):
         raise TypeError("Do NOT instantiate this class")
 
-    class account:
-        name: Optional[str] = None
-
-        cash: Optional[int] = None
-
-        commission: Optional[float] = None
-
-        token: Optional[str] = None
+    accounts: Optional[list] = None
 
     class redis:
         dsn: Optional[str] = None
