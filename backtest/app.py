@@ -7,9 +7,9 @@ import omicron
 from omicron.models.timeframe import TimeFrame
 from sanic import Sanic
 
-from backtest.api import bp
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
+from backtest.web.interfaces import bp
 
 app = Sanic("backtest")
 logger = logging.getLogger(__name__)

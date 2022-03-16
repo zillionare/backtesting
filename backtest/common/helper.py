@@ -27,12 +27,12 @@ def check_token(request):
 
     app = Sanic.get_app("backtest")
 
-    if request.token != app.ctx.cfg.account.token:
-        return False
-
+    if request.token not in app.ctx.cfg.accounts:
+        pass
+        # todo
     if request.broker is None:
         account, cash, commission = get_account_info(request.token)
-        from backtest.broker import Broker
+        from backtest.trade.broker import Broker
 
         request.broker = Broker(account, cash, commission)
 

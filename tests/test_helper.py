@@ -1,9 +1,9 @@
 import datetime
 import unittest
 
-from backtest.helper import make_response
-from backtest.trade import Trade
-from backtest.types import Entrust, EntrustError, EntrustSide
+from backtest.common.helper import make_response
+from backtest.trade.trade import Trade
+from backtest.trade.types import Entrust, EntrustError, EntrustSide
 
 
 class HelperTest(unittest.TestCase):

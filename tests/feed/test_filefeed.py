@@ -25,7 +25,7 @@ class FileFeedTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bars[-1]["frame"], datetime.datetime(2022, 3, 10, 15))
 
     async def test_get_close_price(self):
-        codes = ["002357.XSHE", "063717.XSHG"]
+        codes = ["002537.XSHE", "063717.XSHG"]
         prices = await self.feed.get_close_price(codes, datetime.date(2022, 3, 10))
         print(prices)
 

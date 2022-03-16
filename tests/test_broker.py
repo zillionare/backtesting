@@ -8,12 +8,18 @@ import omicron
 from omicron.models.timeframe import TimeFrame as tf
 from sanic import Sanic
 
-from backtest.broker import Broker
+from backtest.common.helper import get_app_context
 from backtest.config import get_config_dir
 from backtest.feed.filefeed import FileFeed
-from backtest.helper import get_app_context
-from backtest.trade import Trade
-from backtest.types import BidType, Entrust, EntrustError, EntrustSide, position_dtype
+from backtest.trade.broker import Broker
+from backtest.trade.trade import Trade
+from backtest.trade.types import (
+    BidType,
+    Entrust,
+    EntrustError,
+    EntrustSide,
+    position_dtype,
+)
 from tests import data_dir
 
 app = Sanic("backtest")
@@ -151,19 +157,19 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(broker.get_positions(datetime.date(2022, 3, 3))))
 
         trade = Trade(
-            1, "002357.XSHE", 1.0, 100, 5, EntrustSide.BUY, datetime.date(2022, 3, 3)
+            1, "002537.XSHE", 1.0, 100, 5, EntrustSide.BUY, datetime.date(2022, 3, 3)
         )
         broker.trades[trade.tid] = trade
         broker._append_unclosed_trades(trade.tid, datetime.date(2022, 3, 3))
 
         positions = broker.get_positions(datetime.date(2022, 3, 3))
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
+        self.assertTupleEqual(("002537.XSHE", 100, 1.0), positions[0].tolist())
 
         positions = broker.get_positions(datetime.date(2022, 3, 7))
         self.assertEqual(3, len(broker._unclosed_trades))
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
+        self.assertTupleEqual(("002537.XSHE", 100, 1.0), positions[0].tolist())
 
         trade = Trade(
             2, "603717.XSHG", 1.0, 1000, 50, EntrustSide.BUY, datetime.date(2022, 3, 8)
@@ -190,14 +196,14 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker = Broker("test", 1e10, 1e-4)
 
         trade = Trade(
-            1, "002357.XSHE", 1.0, 100, 5, EntrustSide.BUY, datetime.date(2022, 3, 3)
+            1, "002537.XSHE", 1.0, 100, 5, EntrustSide.BUY, datetime.date(2022, 3, 3)
         )
         broker.trades[trade.tid] = trade
         broker._append_unclosed_trades(trade.tid, datetime.date(2022, 3, 3))
 
         positions = broker.positions
         self.assertEqual(1, len(positions))
-        self.assertTupleEqual(("002357.XSHE", 100, 1.0), positions[0].tolist())
+        self.assertTupleEqual(("002537.XSHE", 100, 1.0), positions[0].tolist())
 
         trade = Trade(
             2, "603717.XSHG", 1.0, 1000, 50, EntrustSide.BUY, datetime.date(2022, 3, 8)
