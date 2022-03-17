@@ -73,4 +73,9 @@ class EntrustError(IntEnum):
         }.get(self)
 
 
-position_dtype = [("security", "O"), ("shares", "<f8"), ("cost", "<f8")]
+position_dtype = [
+    ("code", "O"),
+    ("shares", "<f8"),
+    ("sellable", "<f8"),
+    ("price", "<f8"),
+]

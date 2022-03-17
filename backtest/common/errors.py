@@ -1,3 +1,17 @@
+from enum import IntEnum
+
+
+class GenericErrCode(IntEnum):
+    OK = 0
+    UNKNOWN = -1
+
+    def __str__(self):
+        return {
+            GenericErrCode.OK: "成功",
+            GenericErrCode.UNKNOWN: "失败",
+        }.get(self)
+
+
 class Error(Exception):
     """错误基类"""
 

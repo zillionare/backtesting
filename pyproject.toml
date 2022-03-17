@@ -54,6 +54,7 @@ arrow = "^1.2.2"
 zillionare-core-types = "^0.4.1"
 psutil = "^5.9.0"
 tqdm = "^4.63.0"
+requests = "^2.27.1"
 
 [tool.poetry.extras]
 test = [

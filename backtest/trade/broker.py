@@ -71,10 +71,10 @@ class Broker:
         """获取`dt`日持仓
 
         Args:
-            dt : _description_
+            dt : 查询哪一天的持仓
 
         Returns:
-            返回结果为[(security, shares, price)]，其中price为该批持仓的均价。
+            返回结果为[(security, heldings, sellable, price)]，其中price为该批持仓的均价。
         """
         unclosed = self.get_unclosed_trades(dt)
 
@@ -88,20 +88,83 @@ class Broker:
             assert trade.closed is False
 
             position = positions.get(sec)
+
             if position is None:
-                positions[sec] = (trade._unsell, trade.price)
+                sellable = trade._unsell if trade.time.date() < dt else 0
+                positions[sec] = (trade._unsell, sellable, trade.price)
             else:
-                shares, price = position
+                shares, sellable, price = position
                 price = (price * shares + trade.price * trade._unsell) / (
                     shares + trade._unsell
                 )
                 shares += trade._unsell
-                positions[sec] = (shares, price)
+
+                if trade.time.date() < dt:
+                    sellable += trade._unsell
+
+                positions[sec] = (shares, sellable, price)
 
         return np.array(
-            [(sec, shares, price) for sec, (shares, price) in positions.items()],
+            [
+                (sec, heldings, sellable, price)
+                for sec, (heldings, sellable, price) in positions.items()
+            ],
             dtype=position_dtype,
         )
+
+    @property
+    def info(self) -> Dict:
+        """账号相关信息
+
+        Returns:
+            A dict of the following:
+            ‒ start: since when the account is set
+            ‒ name: the name/id of the account
+            ‒ assets: 当前资产
+            ‒ captial: 本金
+            ‒ last_trade: 最后一笔交易时间
+            ‒ 交易笔数
+        """
+        sorted_days = sorted(list(self._assets.keys()))
+
+        if len(sorted_days) > 0:
+            start, end = sorted_days[0], sorted_days[-1]
+            start = start.isoformat()
+            end = end.isoformat()
+        else:
+            start, end = None, None
+        return {
+            "start": start,
+            "name": self.account_name,
+            "assets": self.assets,
+            "capital": self.capital,
+            "last_trade": None,
+            "trade_count": len(self.transactions),
+            "trades": self.transactions,
+            "earnings": self.assets - self.capital,
+            "returns": self.get_returns().tolist(),
+        }
+
+    def get_returns(self, date: datetime.date = None) -> List[float]:
+        """求截止`date`时的每日回报
+
+        Args:
+            date : _description_.
+
+        Returns:
+            _description_
+        """
+        dtype = [("date", "O"), ("assets", "f4")]
+        assets = np.array(
+            [(d, self._assets[d]) for d in sorted(self._assets.keys())], dtype=dtype
+        )
+
+        if date is not None:
+            assets = assets[assets["date"] <= date]
+
+        returns = [self.capital] + assets["assets"]
+
+        return np.diff(returns) / returns[:-1]
 
     @property
     def assets(self) -> float:
@@ -205,7 +268,9 @@ class Broker:
         )
         self.entrusts[en.eid] = en
 
-        _, buy_limit_price, _ = await feed.get_trade_price_limits(security, bid_time)
+        _, buy_limit_price, _ = await feed.get_trade_price_limits(
+            security, bid_time.date()
+        )
 
         bid_price = bid_price or buy_limit_price
 
@@ -310,11 +375,12 @@ class Broker:
         self._append_unclosed_trades(trade.tid, close_time.date())
 
         logger.info(
-            "买入成交(%s): %s %d %.2f,委单号: %s, 成交号: %s",
+            "买入成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
             close_time,
             en.security,
             filled,
             price,
+            fee,
             en.eid,
             trade.tid,
         )
@@ -351,7 +417,7 @@ class Broker:
         feed = get_app_context().feed
         closes = await feed.get_close_price(held_secs, date)
 
-        for sec, shares, _ in positions:
+        for sec, shares, sellable, _ in positions:
             market_value += closes[sec] * shares
 
         self._assets[date] = self.cash + market_value
@@ -397,11 +463,12 @@ class Broker:
                 )
 
                 logger.info(
-                    "卖出成交(%s): %s %d %.2f,委单号: %s, 成交号: %s",
+                    "卖出成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
                     exit_trade.time,
                     en.security,
                     exit_trade.shares,
                     exit_trade.price,
+                    exit_trade.fee,
                     en.eid,
                     exit_trade.tid,
                 )
@@ -460,7 +527,9 @@ class Broker:
         feed = get_app_context().feed
 
         logger.info("卖出委托(%s): %s %s %s", bid_time, security, bid_price, bid_shares)
-        _, _, sell_limit_price = await feed.get_trade_price_limits(security, bid_time)
+        _, _, sell_limit_price = await feed.get_trade_price_limits(
+            security, bid_time.date()
+        )
 
         if bid_price is None:
             bid_type = BidType.MARKET

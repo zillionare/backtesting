@@ -9,14 +9,29 @@ logging:
     console:
       class: logging.StreamHandler
       formatter: default
+    file:
+      class: logging.handlers.RotatingFileHandler
+      formatter: default
+      filename: /var/log/backtest/backtest.log
+      maxBytes: 10485760
+      backupCount: 10
+      encoding: utf-8
   loggers:
     apscheduler:
       level: INFO
+    sanic:
+      level: WARNING
+    cfg4py:
+      level: WARNING
   root:
     handlers:
       - console
+      - file
     level: INFO
 
+server:
+  path: /backtest/api/trade/v0.1/
+  port: 7080
 accounts:
   - name: "aaron"
     cash: 1000000

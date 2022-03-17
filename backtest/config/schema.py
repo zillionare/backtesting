@@ -22,6 +22,11 @@ class Config(object):
     def __init__(self):
         raise TypeError("Do NOT instantiate this class")
 
+    class server:
+        path: Optional[str] = None
+
+        port: Optional[int] = None
+
     accounts: Optional[list] = None
 
     class redis:

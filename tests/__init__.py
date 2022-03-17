@@ -100,6 +100,28 @@ async def post(cmd: str, data):
         return None
 
 
+async def get(cmd: str, data=None):
+    global port
+
+    url = f"http://localhost:{port}/backtest/api/trade/v0.1/{cmd}"
+    headers = {
+        "Authorization": f"Token {cfg.accounts[0]['token']}",
+        "Request-ID": uuid.uuid4().hex,
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, json=data, headers=headers) as resp:
+                if resp.content_type == "application/json":
+                    return await resp.json()
+                elif resp.content_type == "text/plain":
+                    return await resp.text()
+                else:
+                    return await resp.content.read()
+    except Exception as e:
+        logger.exception(e)
+        return None
+
+
 def data_dir():
     return os.path.join(os.path.dirname(__file__), "data")
 
