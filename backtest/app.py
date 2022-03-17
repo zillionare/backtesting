@@ -9,6 +9,7 @@ from sanic import Sanic
 
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
+from backtest.web.accounts import Accounts
 from backtest.web.interfaces import bp
 
 app = Sanic("backtest")
@@ -24,13 +25,19 @@ async def application_init(app, *args):
 
     feed = await BaseFeed.create_instance(interface="zillionare")
     app.ctx.feed = feed
+    app.ctx.accounts = Accounts()
 
 
-def start(port: int = 7080):
-    logger.info("start backtest server at port %s", port)
-    cfg4py.init(get_config_dir())
+def start(port: int):
+    cfg = cfg4py.init(get_config_dir())
+
+    path = cfg.server.path.rstrip("/")
+
+    logger.info("start backtest server at http://host:%s/%s", port, path)
+    bp.url_prefix = path
 
     app.blueprint(bp)
+
     app.register_listener(application_init, "before_server_start")
     app.run(host="0.0.0.0", port=port, register_sys_signals=True)
     logger.info("backtest server stopped")

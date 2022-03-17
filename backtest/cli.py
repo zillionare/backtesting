@@ -1,15 +1,23 @@
 """Console script for backtest."""
 
 import logging
+import os
+import signal
 import subprocess
 import sys
 import time
 
+import cfg4py
 import fire
 import psutil
+import requests
 from tqdm import tqdm
 
+from backtest.config import get_config_dir
+
 logger = logging.getLogger(__name__)
+
+cfg = cfg4py.init(get_config_dir())
 
 
 def help():
@@ -31,6 +39,16 @@ def find_backtest_process():
     return None
 
 
+def is_running(port, path):
+    url = f"http://localhost:{port}/{path}/status"
+
+    try:
+        r = requests.get(url)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def status():
     """检查backtest server是否已经启动"""
     pid = find_backtest_process()
@@ -38,7 +56,18 @@ def status():
         print("backtest server未启动")
         return
 
-    print(f"backtest server正在运行：(pid<{pid}>)")
+    port = cfg.server.port
+    path = cfg.server.path.strip("/")
+
+    if is_running(port, path):
+        print("\n=== backtest server is RUNNING ===")
+        print("pid:", pid)
+        print("port:", port)
+        print("path:", path)
+        print("\n")
+    else:
+        print("=== backtest server is DEAD ===")
+        os.kill(pid, signal.SIGKILL)
 
 
 def stop():
@@ -54,11 +83,15 @@ def stop():
     print("backtest server停止成功")
 
 
-def start(port: int = 7080):
-    print("启动backtest server")
-    if find_backtest_process() is not None:
-        print("backtest server已经启动")
+def start(port: int = None):
+    path = cfg.server.path.strip("/")
+    port = port or cfg.server.port
+
+    if is_running(port, path):
+        status()
         return
+
+    print("启动backtest server")
 
     process = subprocess.Popen(
         [sys.executable, "-m", "backtest.app", "start", f"--port={port}"],
@@ -68,9 +101,8 @@ def start(port: int = 7080):
 
     for i in tqdm(range(100)):
         time.sleep(0.1)
-        pid = find_backtest_process()
-        if pid is not None:
-            print(f"backtest server启动成功(pid<{pid}>),耗时{i * 0.1}秒")
+        if is_running(port, path):
+            status()
             return
 
         if process.poll() is not None:
