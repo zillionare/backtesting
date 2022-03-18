@@ -23,9 +23,9 @@ def get_config_dir():
     if server_role == "DEV":
         _dir = path.normpath(path.join(path.dirname(__file__), "../config"))
     elif server_role == "TEST":
-        _dir = path.expanduser("~/.zillionare/omega/config")
+        _dir = path.expanduser("~/.zillionare/backtest/config")
     else:
-        _dir = path.expanduser("~/zillionare/omega/config")
+        _dir = path.expanduser("~/zillionare/backtest/config")
 
     sys.path.insert(0, _dir)
     return _dir
