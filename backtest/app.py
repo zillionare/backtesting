@@ -12,7 +12,7 @@ from backtest.feed.basefeed import BaseFeed
 from backtest.web.accounts import Accounts
 from backtest.web.interfaces import bp
 
-app = Sanic("backtest")
+application = Sanic("backtest")
 logger = logging.getLogger(__name__)
 
 
@@ -36,10 +36,10 @@ def start(port: int):
     logger.info("start backtest server at http://host:%s/%s", port, path)
     bp.url_prefix = path
 
-    app.blueprint(bp)
+    application.blueprint(bp)
 
-    app.register_listener(application_init, "before_server_start")
-    app.run(host="0.0.0.0", port=port, register_sys_signals=True)
+    application.register_listener(application_init, "before_server_start")
+    application.run(host="0.0.0.0", port=port, register_sys_signals=True)
     logger.info("backtest server stopped")
 
 

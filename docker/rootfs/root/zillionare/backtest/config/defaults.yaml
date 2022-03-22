@@ -45,6 +45,6 @@ server:
   port: 7080
 accounts:
   - name: "aaron"
-    cash: 1000000
+    cash: 1_000_000
     commission: 0.0001
     token: "abcd"

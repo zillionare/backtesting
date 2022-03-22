@@ -74,7 +74,7 @@ class EntrustError(IntEnum):
 
 
 position_dtype = [
-    ("code", "O"),
+    ("security", "O"),
     ("shares", "<f8"),
     ("sellable", "<f8"),
     ("price", "<f8"),

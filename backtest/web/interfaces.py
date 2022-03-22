@@ -21,13 +21,13 @@ async def status(request):
 async def buy(request):
     params = request.json
 
-    security = params["code"]
+    security = params["security"]
     price = params["price"]
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
     result = await request.ctx.broker.buy(security, price, volume, order_time)
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(result)
 
 
 @bp.route("sell", methods=["POST"])
@@ -44,25 +44,18 @@ async def sell(request):
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
-@bp.route("positions", methods=["POST", "GET"])
+@bp.route("position", methods=["POST", "GET"])
 @protected
-async def positions(request):
+async def position(request):
     params = request.json
 
     if params is None or params.get("date") is None:
-        positions = request.ctx.broker.positions
+        position = request.ctx.broker.position
     else:
         date = arrow.get(params.get("date")).date()
-        positions = request.ctx.broker.get_positions(date)
+        position = request.ctx.broker.get_position(date)
 
-    result = [
-        {
-            "security": item[0],
-            "shares": item[1],
-            "price": item[2],
-        }
-        for item in positions
-    ]
+    result = [{k: row[k] for k in position.dtype.names} for row in position]
 
     return response.json(make_response(GenericErrCode.OK, data=result))
 
@@ -104,7 +97,7 @@ async def available_shares(request):
     code = request.args.get("code")
 
     broker = request.ctx.broker
-    shares = {item["code"]: item["sellable"] for item in broker.positions}
+    shares = {item["code"]: item["sellable"] for item in broker.position}
 
     if code is None:
         return response.json(make_response(GenericErrCode.OK, data=shares))
@@ -118,7 +111,7 @@ async def balance(request):
     broker = request.ctx.broker
 
     account = broker.account_name
-    pnl = (broker.assets - broker.capital) / broker.capital
+    pnl = broker.assets - broker.capital
     cash = broker.cash
     market_value = broker.assets - cash
     total = broker.assets
@@ -145,5 +138,5 @@ async def metrics(request):
     start = arrow.get(params["start"]).date()
     end = arrow.get(params["end"]).date()
 
-    metrics = request.ctx.broker.get_metrics(start, end)
+    metrics = request.ctx.broker.metrics(start, end)
     return response.json(make_response(GenericErrCode.OK, data=metrics))

@@ -27,3 +27,9 @@ class BadParameterError(Error):
     """参数错误"""
 
     pass
+
+
+class NoDataForMatchError(Error):
+    """缺少撮合数据"""
+
+    pass

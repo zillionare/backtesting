@@ -19,7 +19,9 @@ from coretypes import FrameType, bars_dtype
 from omicron.models.timeframe import TimeFrame
 
 from backtest.config import get_config_dir
+from backtest.feed.filefeed import FileFeed
 
+os.environ[cfg4py.envar] = "DEV"
 cfg = cfg4py.init(get_config_dir())
 logger = logging.getLogger(__name__)
 port = None
@@ -29,8 +31,7 @@ def find_free_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind(("localhost", 0))
         # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        port = s.getsockname()[1]
-        return port
+        return s.getsockname()[1]
 
 
 async def start_backtest_server(timeout=60):
@@ -48,8 +49,8 @@ async def start_backtest_server(timeout=60):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    for i in range(timeout, 0, -1):
-        await asyncio.sleep(1)
+    for i in range(timeout * 10, 0, -1):
+        await asyncio.sleep(0.1)
         if process.poll() is not None:
             # already exit, due to finish or fail
             out, err = process.communicate()
@@ -73,11 +74,12 @@ async def start_backtest_server(timeout=60):
 
 
 async def is_backtest_server_alive(port):
-    url = f"http://localhost:{port}/backtest/api/trade/v0.1/status"
+    url = f"http://localhost:{port}/backtest/api/trade/v0.2/status"
 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
+                logger.info("url: %s, status: %s", url, resp.status)
                 return resp.status == 200
     except Exception:
         return False
@@ -86,7 +88,9 @@ async def is_backtest_server_alive(port):
 async def post(cmd: str, data):
     global port
 
-    url = f"http://localhost:{port}/backtest/api/trade/v0.1/{cmd}"
+    url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
+
+    logger.info("post %s", url)
 
     headers = {
         "Authorization": f"Token {cfg.accounts[0]['token']}",
@@ -103,7 +107,9 @@ async def post(cmd: str, data):
 async def get(cmd: str, data=None):
     global port
 
-    url = f"http://localhost:{port}/backtest/api/trade/v0.1/{cmd}"
+    url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
+    logger.info("get %s", url)
+
     headers = {
         "Authorization": f"Token {cfg.accounts[0]['token']}",
         "Request-ID": uuid.uuid4().hex,
@@ -198,3 +204,9 @@ def bars_from_csv(
         is_date = True
 
     return lines2bars(read_csv(fname, start_line, end_line), is_date)
+
+
+def create_file_feed():
+    match_bars_file = os.path.join(data_dir(), "bars_1m.pkl")
+    price_limits_file = os.path.join(data_dir(), "limits.pkl")
+    return FileFeed(match_bars_file, price_limits_file)

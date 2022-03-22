@@ -11,14 +11,6 @@ seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
 logger = logging.getLogger(__name__)
 
 
-def get_account_info(token: str):
-    app = Sanic.get_app("backtest")
-
-    for item in app.ctx.cfg.accounts:
-        if item["token"] == token:
-            return item["name"], item["cash"], item["commission"]
-
-
 def get_app_context():
     app = Sanic.get_app("backtest")
     return app.ctx

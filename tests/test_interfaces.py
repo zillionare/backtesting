@@ -1,4 +1,5 @@
 import unittest
+from turtle import pos
 
 from tests import get, post, start_backtest_server
 
@@ -36,9 +37,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
         self.assertEqual(data["shares"], 500)
 
-    async def test_positions(self):
-        positions = await get("position")
-        self.assertListEqual([], positions)
+    async def test_position(self):
+        response = await get("position")
+        self.assertListEqual([], response["data"])
 
         await post(
             "buy",
@@ -52,22 +53,24 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        position = (await get("position"))[0]
-        self.assertAlmostEqual(position["security"], "002537.XSHE")
+        response = await get("position")
+        position = response["data"][0]
+        self.assertEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
-        positions = await get("position", {"date": "2022-03-07"})
-        self.assertEqual(1, len(positions))
-        position = positions[0]
+        response = await get("position", {"date": "2022-03-07"})
+        position = response["data"][0]
 
         self.assertAlmostEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
     async def test_balance(self):
-        balance = await get("balance")
-        self.assertEqual(balance, 0)
+        balance = (await get("balance"))["data"]
+        self.assertEqual(balance["cash"], 1_000_000)
+        self.assertEqual(balance["total"], 1_000_000)
+        self.assertAlmostEqual(balance["pnl"], 0, 2)
 
         await post(
             "buy",
@@ -81,5 +84,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        balance = await get("balance")
-        self.assertAlmostEqual(balance, 50)
+        balance = (await get("balance"))["data"]
+        self.assertAlmostEqual(balance["cash"], 995289.53, 2)
+        self.assertAlmostEqual(balance["market_value"], 4750.0, 2)
+        self.assertAlmostEqual(balance["total"], 1000039.5289618492, 2)
+        self.assertAlmostEqual(balance["pnl"], 39.53, 2)
+        self.assertAlmostEqual(balance["ppnl"], 39.53 / 1_000_000, 2)

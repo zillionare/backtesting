@@ -2,12 +2,21 @@ import datetime
 import logging
 from typing import Dict, List, Tuple
 
+import cfg4py
 import numpy as np
-from coretypes import FrameType
+from coretypes import Frame, FrameType
 from omicron.extensions.np import math_round
 from omicron.models.timeframe import TimeFrame as tf
+from omicron.talib.metrics import (
+    annual_return,
+    calmar_ratio,
+    max_drawdown,
+    sharpe_ratio,
+    sortino_ratio,
+    volatility,
+)
 
-from backtest.common.errors import BadParameterError
+from backtest.common.errors import BadParameterError, NoDataForMatchError
 from backtest.common.helper import get_app_context, make_response
 from backtest.trade.trade import Trade
 from backtest.trade.types import (
@@ -18,6 +27,7 @@ from backtest.trade.types import (
     position_dtype,
 )
 
+cfg = cfg4py.get_instance()
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +48,7 @@ class Broker:
         self.capital = capital
         self.cash = capital  # 当前可用资金
         self._assets = {}  # 每日总资产, 包括本金和持仓资产
+        self._positions = {}  # 每日持仓
         self._unclosed_trades = {}  # 未平仓的交易
 
         # 委托列表，包括废单和未成交委托
@@ -48,6 +59,17 @@ class Broker:
 
         # trasaction = buy + sell trade
         self.transactions = []
+
+        self._last_trade_date = None
+        self._first_trade_date = None
+
+    @property
+    def account_start_date(self) -> datetime.date:
+        return self._first_trade_date
+
+    @property
+    def last_trade_date(self):
+        return self._last_trade_date
 
     def get_unclosed_trades(self, dt: datetime.date) -> set:
         """获取`dt`当天未平仓的交易
@@ -67,7 +89,7 @@ class Broker:
 
         return self._unclosed_trades.get(dt)
 
-    def get_positions(self, dt: datetime.date) -> List:
+    def get_position(self, dt: Frame) -> List:
         """获取`dt`日持仓
 
         Args:
@@ -76,41 +98,23 @@ class Broker:
         Returns:
             返回结果为[(security, heldings, sellable, price)]，其中price为该批持仓的均价。
         """
-        unclosed = self.get_unclosed_trades(dt)
+        if len(self._positions) == 0:
+            return None
 
-        positions = {}
-        for tid in unclosed:
-            trade = self.trades[tid]
-            sec = trade.security
+        if type(dt) == datetime.datetime:
+            dt = dt.date()
 
-            assert trade.side == EntrustSide.BUY
-            assert trade._unsell > 0
-            assert trade.closed is False
+        days = np.array(sorted(list(self._positions.keys())))
 
-            position = positions.get(sec)
+        pos = np.max(np.argwhere(days <= dt))
+        position = self._positions[days[pos]]
 
-            if position is None:
-                sellable = trade._unsell if trade.time.date() < dt else 0
-                positions[sec] = (trade._unsell, sellable, trade.price)
-            else:
-                shares, sellable, price = position
-                price = (price * shares + trade.price * trade._unsell) / (
-                    shares + trade._unsell
-                )
-                shares += trade._unsell
+        # 如果获取日期大于days[pos]当前日期，则所有股份都变为可售
+        if dt > days[pos]:
+            position = position.copy()
+            position["sellable"] = position["shares"]
 
-                if trade.time.date() < dt:
-                    sellable += trade._unsell
-
-                positions[sec] = (shares, sellable, price)
-
-        return np.array(
-            [
-                (sec, heldings, sellable, price)
-                for sec, (heldings, sellable, price) in positions.items()
-            ],
-            dtype=position_dtype,
-        )
+        return position
 
     @property
     def info(self) -> Dict:
@@ -125,20 +129,12 @@ class Broker:
             ‒ last_trade: 最后一笔交易时间
             ‒ 交易笔数
         """
-        sorted_days = sorted(list(self._assets.keys()))
-
-        if len(sorted_days) > 0:
-            start, end = sorted_days[0], sorted_days[-1]
-            start = start.isoformat()
-            end = end.isoformat()
-        else:
-            start, end = None, None
         return {
-            "start": start,
+            "start": self.account_start_date,
             "name": self.account_name,
             "assets": self.assets,
             "capital": self.capital,
-            "last_trade": None,
+            "last_trade": self.last_trade_date,
             "trade_count": len(self.transactions),
             "trades": self.transactions,
             "earnings": self.assets - self.capital,
@@ -172,39 +168,47 @@ class Broker:
 
         如果要获取历史上某天的总资产，请使用`get_assets`方法。
         """
-        days = sorted(list(self._assets.keys()))
-
-        if len(days) == 0:
+        if self.last_trade_date is None:
             return self.capital
 
-        return self._assets[days[-1]]
+        return self.get_assets(self.last_trade_date)
 
     def get_assets(self, date: datetime.date) -> float:
-        days = sorted(list(self._assets.keys()))
+        """计算某日的总资产
 
-        if len(days) == 0 or date < days[0]:
-            return self.capital
+        assets在每次交易后都会更新，所以可以通过计算assets来计算某日的总资产。如果某日不存在交易，则返回上一笔交易后的资产。
 
-        pos = np.argwhere(date >= days)[0]
-
-        dt = days[pos]
-        return self._assets[dt]
-
-    @property
-    def positions(self):
-        """获取当前持仓
-
-        如果要获取历史上某天的持仓，请使用`get_positions`方法。
+        Args:
+            date : 查询哪一天的资产
 
         Returns:
-            返回成员为(security, shares, price)的numpy structure array
-        """
-        days = sorted(self._unclosed_trades.keys())
+            返回总资产
 
-        if len(days) == 0:
+        """
+        if len(self._assets) == 0:
+            return self.capital
+
+        if type(date) == datetime.datetime:
+            date = date.date()
+
+        days = np.array(sorted(list(self._assets.keys())))
+
+        pos = np.max(np.argwhere(days <= date))
+        return self._assets[days[pos]]
+
+    @property
+    def position(self):
+        """获取当前持仓
+
+        如果要获取历史上某天的持仓，请使用`get_position`方法。
+
+        Returns:
+            返回成员为(code, shares, sellable, price)的numpy structure array
+        """
+        if self.last_trade_date is None:
             return np.array([], dtype=position_dtype)
 
-        return self.get_positions(days[-1])
+        return self.get_position(self.last_trade_date)
 
     def __str__(self):
         s = (
@@ -212,13 +216,32 @@ class Broker:
             + f"    总资产：{self.assets:,.2f}\n"
             + f"    本金：{self.capital:,.2f}\n"
             + f"    可用资金：{self.cash:,.2f}\n"
-            + f"    持仓：{self.positions}\n"
+            + f"    持仓：{self.position}\n"
         )
 
         return s
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>{self}"
+
+    def _update_trade_date(self, bid_time: Frame):
+        """根据bid_time，
+
+        Args:
+            bid_time : _description_
+        """
+        if bid_time.__class__.__name__ == "datetime":
+            bid_time = bid_time
+
+        if self._first_trade_date is None:
+            self._first_trade_date = bid_time
+        else:
+            self._first_trade_date = min(self._first_trade_date, bid_time)
+
+        if self._last_trade_date is None:
+            self._last_trade_date = bid_time
+        else:
+            self._last_trade_date = max(self._last_trade_date, bid_time)
 
     async def buy(
         self,
@@ -266,6 +289,9 @@ class Broker:
             bid_price,
             en.eid,
         )
+
+        self._update_trade_date(bid_time)
+
         self.entrusts[en.eid] = en
 
         _, buy_limit_price, _ = await feed.get_trade_price_limits(
@@ -276,6 +302,9 @@ class Broker:
 
         # 获取用以撮合的数据
         bars = await feed.get_bars_for_match(security, bid_time)
+        if bars.size == 0:
+            logger.warning("failed to match %s, no data at %s", security, bid_time)
+            raise NoDataForMatchError(f"没有{security}在{bid_time}当天的数据")
 
         # 排除在涨停板上买入的情况
         if self._reached_trade_price_limits(bars, bid_time, buy_limit_price):
@@ -373,6 +402,7 @@ class Broker:
         trade = Trade(en.eid, en.security, price, filled, fee, en.side, close_time)
         self.trades[trade.tid] = trade
         self._append_unclosed_trades(trade.tid, close_time.date())
+        self._update_position(trade, close_time.date())
 
         logger.info(
             "买入成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
@@ -398,31 +428,95 @@ class Broker:
 
         return make_response(status, data=trade.to_json(), err_msg=msg)
 
-    async def _update_assets(self, cash_change: float, date: datetime.date):
+    def _update_position(self, trade: Trade, bid_date: datetime.date):
+        """更新持仓信息
+
+        持仓信息按日组织为dict, 其value为numpy一维数组，包含当日持仓的所有股票的代码、持仓量、可售数量和均价。
+
+        Args:
+            trade: 交易信息
+            bid_date: 买入/卖出日期
+        """
+        if type(bid_date) == datetime.datetime:
+            bid_date = bid_date.date()
+
+        # find and copy
+        position = self.get_position(bid_date)
+
+        if position is None:
+            self._positions[bid_date] = np.array(
+                [(trade.security, trade.shares, 0, trade.price)], dtype=position_dtype
+            )
+        else:
+            position = position.copy()
+            if np.any(position["security"] == trade.security):
+                # found and merge
+                i = np.where(position["security"] == trade.security)[0][0]
+
+                _, old_shares, old_sellable, old_price = position[i]
+                new_shares, new_price = trade.shares, trade.price
+
+                if trade.side == EntrustSide.BUY:
+                    position[i] = (
+                        trade.security,
+                        old_shares + trade.shares,
+                        old_sellable,
+                        (old_price * old_shares + new_shares * new_price)
+                        / (old_shares + new_shares),
+                    )
+                else:
+                    shares = old_shares - trade.shares
+                    sellable = old_sellable - trade.shares
+                    if shares == 0:
+                        position = np.delete(position, i, axis=0)
+                    else:
+                        position[i] = (
+                            trade.security,
+                            shares,
+                            sellable,
+                            old_price,  # 卖出时成本不变
+                        )
+            else:
+                position = np.concatenate(
+                    (
+                        position,
+                        np.array(
+                            [(trade.security, trade.shares, 0, trade.price)],
+                            dtype=position_dtype,
+                        ),
+                    )
+                )
+
+            self._positions[bid_date] = position
+
+    async def _update_assets(self, cash_change: float, dt: datetime.date):
         """更新当前资产（含持仓）
 
         在每次资产变动时进行计算和更新。
 
         Args:
             cash_change : 变动的现金
-            date: 当前资产（持仓）所属于的日期
+            dt: 当前资产（持仓）所属于的日期
         """
+        if type(dt) == datetime.datetime:
+            dt = dt.date()
+
         self.cash += cash_change
 
-        positions = self.get_positions(date)
+        positions = self.get_position(dt)
 
         held_secs = [pos[0] for pos in positions]
 
         market_value = 0
         feed = get_app_context().feed
-        closes = await feed.get_close_price(held_secs, date)
+        closes = await feed.get_close_price(held_secs, dt)
 
         for sec, shares, sellable, _ in positions:
             market_value += closes[sec] * shares
 
-        self._assets[date] = self.cash + market_value
+        self._assets[dt] = self.cash + market_value
         logger.info(
-            f"资产更新({date})<总资产:{self.assets:,.2f} 可用:{self.cash:,.2f} 本金:{self.capital:,.2f}>"
+            f"资产更新({dt})<总资产:{self.assets:,.2f} 可用:{self.cash:,.2f} 本金:{self.capital:,.2f}>"
         )
         logger.info("持仓: \n%s", positions)
 
@@ -472,11 +566,12 @@ class Broker:
                     en.eid,
                     exit_trade.tid,
                 )
+                self._update_position(exit_trade, exit_trade.time)
                 exit_trades.append(exit_trade)
                 self.trades[exit_trade.tid] = exit_trade
                 self.transactions.append(tx)
 
-                refund += exit_trade.shares * exit_trade.price
+                refund += exit_trade.shares * exit_trade.price - exit_trade.fee
 
                 if trade.closed:
                     closed_trades.append(tid)
@@ -486,8 +581,6 @@ class Broker:
         unclosed_trades = [tid for tid in unclosed_trades if tid not in closed_trades]
         self._unclosed_trades[dt] = unclosed_trades
 
-        # 扣除卖出费用
-        refund -= fee
         await self._update_assets(refund, en.bid_time.date())
 
         msg = "委托成功"
@@ -531,6 +624,8 @@ class Broker:
             security, bid_time.date()
         )
 
+        self._update_trade_date(bid_time)
+
         if bid_price is None:
             bid_type = BidType.MARKET
             bid_price = sell_limit_price
@@ -539,6 +634,9 @@ class Broker:
 
         # fill the order, get mean price
         bars = await feed.get_bars_for_match(security, bid_time)
+        if bars.size == 0:
+            logger.warning("failed to match: %s, no data at %s", security, bid_time)
+            raise NoDataForMatchError(f"No data for {security} at {bid_time}")
 
         if self._reached_trade_price_limits(bars, bid_time, sell_limit_price):
             logger.info("撮合失败: (%s)，不能在跌停板上卖出。", security)
@@ -641,3 +739,91 @@ class Broker:
 
         current_price = math_round(cur_bar["close"], 2)[0]
         return current_price == math_round(limit_price, 2)
+
+    def metrics(self, start: datetime.date = None, end: datetime.date = None):
+        """
+        获取指定时间段的账户指标
+        """
+        start = max(start or self.account_start_date, self.account_start_date)
+        end = min(end or self.last_trade_date, self.account_start_date)
+
+        tx = []
+        for t in self.transactions:
+            if t.entry_time >= start and t.exit_time <= end:
+                tx.append(t)
+
+        # 资产暴露时间
+        window = tf.count_day_frames(start, end)
+        total_tx = len(tx)
+
+        # win_rate
+        wr = len([t for t in tx if t.profit > 0]) / total_tx
+
+        total_profit = math_round(sum([t.profit for t in tx]), 2)
+
+        assets = []
+        for dt in tf.count_day_frames(start, end):
+            assets.append(self.get_assets(dt))
+
+        assert math_round(assets[-1] - assets[0], 2) == total_profit
+
+        annual_factor = cfg.metrics.annual_days / window
+        returns = [a / self.capital for a in assets]
+        mean_return = np.mean(returns)
+
+        sharpe = sharpe_ratio(returns, rf=cfg.metrics.risk_free_rate)
+        sortino = sortino_ratio(returns, rf=cfg.metrics.risk_free_rate)
+        calma = calmar_ratio(returns, annual_factor=annual_factor)
+        mdd = max_drawdown(returns)
+
+        # 年化收益率
+        period_return = total_profit / self.capital
+        ar = annual_return(period_return, annual_factor)
+
+        # 年化波动率
+        vr = volatility(returns, annual_factor)
+
+        return {
+            "start": start,
+            "end": end,
+            "window": window,
+            "total_tx": total_tx,
+            "total_profit": total_profit,
+            "win_rate": wr,
+            "mean_return": mean_return,
+            "sharpe": sharpe,
+            "sortino": sortino,
+            "calmar": calma,
+            "max_drawdown": mdd,
+            "annual_return": ar,
+            "volatility": vr,
+        }
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    import omicron
+    from sanic import Sanic
+
+    app = Sanic("backtest")
+
+    broker = Broker("aaron", 1_000_000, 1.5e-4)
+    bid_time = datetime.datetime(2022, 3, 18, 9, 35)
+
+    async def init_and_buy(sec, price, shares, bid_time):
+        import os
+
+        from backtest.config import get_config_dir
+        from backtest.feed.basefeed import BaseFeed
+
+        feed = await BaseFeed.create_instance(interface="zillionare")
+        app.ctx.feed = feed
+
+        cfg4py.init("~/zillionare/backtest/config")
+        await omicron.init()
+
+        broker = Broker("aaron", 1_000_000, 1.5e-4)
+        await broker.buy(sec, price, shares, bid_time)
+
+    asyncio.run(init_and_buy("000001.XSHE", 14.7, 100, bid_time))
