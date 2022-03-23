@@ -51,6 +51,8 @@ plugins:
   - mkdocstrings:
       watch:
         - backtest
+  - search
+  - autorefs
 extra:
   social:
     - icon: fontawesome/brands/twitter
@@ -66,6 +68,7 @@ extra:
       name: Github
     - icon: material/email
       link: "mailto:aaron_yang@jieyu.ai"
+
   # to enable disqus, uncomment the following and put your disqus id below
   # disqus: disqus_id
 # uncomment the following and put your google tracking id below to enable GA

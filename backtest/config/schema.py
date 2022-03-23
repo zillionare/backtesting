@@ -22,6 +22,11 @@ class Config(object):
     def __init__(self):
         raise TypeError("Do NOT instantiate this class")
 
+    class metrics:
+        risk_free_rate: Optional[float] = None
+
+        annual_days: Optional[int] = None
+
     class server:
         path: Optional[str] = None
 

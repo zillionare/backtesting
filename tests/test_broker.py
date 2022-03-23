@@ -305,6 +305,19 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         print(broker.info)
 
+    def test_str_repr(self):
+        broker = Broker("test", 1e6, 1e-4)
+        exp = "\n".join(
+            [
+                "账户：test:",
+                "    总资产：1,000,000.00",
+                "    本金：1,000,000.00",
+                "    可用资金：1,000,000.00",
+                "    持仓：[]\n",
+            ]
+        )
+        self.assertEqual(exp, str(broker))
+
     def test_get_assets(self):
         broker = Broker("test", 1e7, 1e-4)
 
@@ -399,3 +412,57 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             dtype=position_dtype,
         )
         self._check_position(broker, positions, mar_10)
+
+    async def test_metrics(self):
+        broker = Broker("test", 1e6, 1e-4)
+        hljh = "002537.XSHE"
+
+        await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
+        await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 2, 9, 31))
+        await broker.buy(hljh, 11.05, 500, datetime.datetime(2022, 3, 3, 9, 31))
+        await broker.buy(hljh, 10.47, 500, datetime.datetime(2022, 3, 4, 9, 31))
+        await broker.buy(hljh, 9.41, 500, datetime.datetime(2022, 3, 7, 9, 31))
+        await broker.buy(hljh, 9.57, 500, datetime.datetime(2022, 3, 8, 9, 31))
+        await broker.buy(hljh, 9.08, 500, datetime.datetime(2022, 3, 9, 9, 31))
+        await broker.buy(hljh, 9.1, 500, datetime.datetime(2022, 3, 10, 9, 31))
+        await broker.buy(hljh, 9.65, 500, datetime.datetime(2022, 3, 11, 9, 31))
+        await broker.buy(hljh, 9.65, 500, datetime.datetime(2022, 3, 14, 9, 31))
+        await broker.sell(hljh, 9.1, 5000, datetime.datetime(2022, 3, 14, 15))
+
+        actual = broker.metrics()
+        exp = {
+            "start": datetime.datetime(2022, 3, 1, 9, 31),
+            "end": datetime.datetime(2022, 3, 14, 15),
+            "window": 10,
+            "total_tx": 9,
+            "total_profit": -779.16,
+            "win_rate": 0.444,
+            "max_drawdown": -0.00826,
+            "mean_return": -0.00055013,
+            "sharpe": -303.672,
+            "sortino": -15.86,
+            "calmar": -15.7,
+            "annual_return": -0.1297,
+            "volatility": 0.0253,
+        }
+
+        for k in [
+            "start",
+            "end",
+            "window",
+            "total_tx",
+            "total_profit",
+            "win_rate",
+            "max_drawdown",
+            "mean_return",
+            "sharpe",
+            "sortino",
+            "calmar",
+            "annual_return",
+            "volatility",
+        ]:
+            v = exp[k]
+            if type(v) == float:
+                self.assertAlmostEqual(v, actual[k], 2)
+            else:
+                self.assertEqual(v, actual[k])

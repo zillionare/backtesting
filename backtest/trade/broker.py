@@ -5,16 +5,16 @@ from typing import Dict, List, Tuple
 import cfg4py
 import numpy as np
 from coretypes import Frame, FrameType
-from omicron.extensions.np import math_round
-from omicron.models.timeframe import TimeFrame as tf
-from omicron.talib.metrics import (
+from empyrical import (
     annual_return,
+    annual_volatility,
     calmar_ratio,
     max_drawdown,
     sharpe_ratio,
     sortino_ratio,
-    volatility,
 )
+from omicron.extensions.np import math_round
+from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.common.errors import BadParameterError, NoDataForMatchError
 from backtest.common.helper import get_app_context, make_response
@@ -744,8 +744,8 @@ class Broker:
         """
         获取指定时间段的账户指标
         """
-        start = max(start or self.account_start_date, self.account_start_date)
-        end = min(end or self.last_trade_date, self.account_start_date)
+        start = min(start or self.account_start_date, self.account_start_date)
+        end = max(end or self.last_trade_date, self.account_start_date)
 
         tx = []
         for t in self.transactions:
@@ -756,32 +756,46 @@ class Broker:
         window = tf.count_day_frames(start, end)
         total_tx = len(tx)
 
+        if total_tx == 0:
+            return {
+                "start": start,
+                "end": end,
+                "window": window,
+                "total_tx": total_tx,
+                "total_profit": None,
+                "win_rate": None,
+                "mean_return": None,
+                "sharpe": None,
+                "sortino": None,
+                "calmar": None,
+                "max_drawdown": None,
+                "annual_return": None,
+                "volatility": None,
+            }
+
         # win_rate
         wr = len([t for t in tx if t.profit > 0]) / total_tx
 
-        total_profit = math_round(sum([t.profit for t in tx]), 2)
-
         assets = []
-        for dt in tf.count_day_frames(start, end):
-            assets.append(self.get_assets(dt))
+        for dt in tf.get_frames(start, end, FrameType.DAY):
+            date = tf.int2date(dt)
+            assets.append(self.get_assets(date))
 
-        assert math_round(assets[-1] - assets[0], 2) == total_profit
+        total_profit = assets[-1] - self.capital
 
-        annual_factor = cfg.metrics.annual_days / window
-        returns = [a / self.capital for a in assets]
+        returns = np.array([a / self.capital for a in assets]) - 1
         mean_return = np.mean(returns)
 
-        sharpe = sharpe_ratio(returns, rf=cfg.metrics.risk_free_rate)
-        sortino = sortino_ratio(returns, rf=cfg.metrics.risk_free_rate)
-        calma = calmar_ratio(returns, annual_factor=annual_factor)
+        sharpe = sharpe_ratio(returns, cfg.metrics.risk_free_rate)
+        sortino = sortino_ratio(returns, cfg.metrics.risk_free_rate)
+        calma = calmar_ratio(returns)
         mdd = max_drawdown(returns)
 
         # 年化收益率
-        period_return = total_profit / self.capital
-        ar = annual_return(period_return, annual_factor)
+        ar = annual_return(returns)
 
         # 年化波动率
-        vr = volatility(returns, annual_factor)
+        vr = annual_volatility(returns)
 
         return {
             "start": start,

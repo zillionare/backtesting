@@ -1,4 +1,6 @@
+import subprocess
 import unittest
+from unittest import mock
 
 from backtest import cli
 from tests import find_free_port

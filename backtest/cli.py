@@ -71,7 +71,7 @@ def status():
 
 
 def stop():
-    print("停止backtest server")
+    print("停止backtest server...")
     pid = find_backtest_process()
     if pid is None:
         print("backtest server未启动")
@@ -80,7 +80,7 @@ def stop():
     p = psutil.Process(pid)
     p.terminate()
     p.wait()
-    print("backtest server停止成功")
+    print("backtest server已停止服务")
 
 
 def start(port: int = None):
@@ -105,7 +105,7 @@ def start(port: int = None):
             status()
             return
 
-        if process.poll() is not None:
+        if process.poll() is not None:  # pragma: no cover
             # already exit, due to finish or fail
             out, err = process.communicate()
             logger.warning(
