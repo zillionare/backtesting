@@ -1,9 +1,9 @@
 [tool]
 [tool.poetry]
-name = "backtest"
+name = "zillionare-backtest"
 version = "0.2.0"
 homepage = "https://github.com/zillionare/backtest"
-description = "backtest framework."
+description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
 license =  "MIT"
