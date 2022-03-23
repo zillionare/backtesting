@@ -41,7 +41,7 @@ influxdb:
   enable_compress: true
 
 server:
-  path: /backtest/api/trade/v0.1/
+  path: /backtest/api/trade/v0.2/
   port: 7080
 accounts:
   - name: "aaron"
