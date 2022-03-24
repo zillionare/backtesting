@@ -13,9 +13,8 @@ RUN    apt-get update\
     && pip3 install cython \
     && pip3 install numpy==1.22.3 \
     && pip3 install --pre zillionare-omicron \
-    && pip3 install --ignore-installed $(echo *.whl) \
+    && pip3 install --pre zillionare-backtest -i https://pypi.org/simple \
     && rm -rf /var/lib/apt/lists/* \
-    && rm /*.whl \
     && mkdir -p /var/log/backtest
 
 EXPOSE $PORT

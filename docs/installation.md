@@ -2,9 +2,14 @@
 
 ## docker
 
-docker run -d --name bt -v /host/config:/config -e port=3180 -p 3180:3180 backtest
+docker run -d --name bt -v /host/config:/config -e PORT=3180 -p 3180:3180 backtest
 
-in the /host/config directory, create a file called defaults.yaml with the following content:
+上述命令中，将本地配置文件目录/host/config映射到容器中的/config目录，并且指定环境变量PORT=3180,并且将容器的3180端口映射到本地的3180端口。这里本地配置文件目录映射是必须的，否则服务器无法启动。
+
+如果不指定PORT，则默认为7080，此时端口映射也应该相应修改为 -p 7080:7080。
+
+在/host/config目录（这是一个host主机上的目录），创建一个名为defaults.yaml的文件，其内容如下：
+
 ```yaml
 redis:
   dsn: redis://redis.z:56379
@@ -20,12 +25,17 @@ influxdb:
 
 server:
   path: /backtest/api/trade/v0.2/
-  port: 7080
 accounts:
   - name: "aaron"
     cash: 1_000_000
     commission: 0.0001
     token: "abcd"
+```
+
+如果不通过-e port=$PORT来指定backtest server监听的端口，那么就需要在配置文件中指定：
+```yaml
+server:
+    port: 3180
 ```
 
 ## Stable release
