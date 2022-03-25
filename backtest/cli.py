@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -34,9 +35,13 @@ def find_backtest_process():
     for p in psutil.process_iter():
         cmd = " ".join(p.cmdline())
         if "backtest.app start" in cmd:
-            return p.pid
+            matched = re.search(r"--port=(\d+)", cmd)
+            if len(matched.groups()):
+                return p.pid, int(matched.groups()[0])
 
-    return None
+            return p.pid, None
+
+    return None, None
 
 
 def is_running(port, path):
@@ -51,12 +56,11 @@ def is_running(port, path):
 
 def status():
     """检查backtest server是否已经启动"""
-    pid = find_backtest_process()
+    pid, port = find_backtest_process()
     if pid is None:
         print("backtest server未启动")
         return
 
-    port = cfg.server.port
     path = cfg.server.path.strip("/")
 
     if is_running(port, path):
@@ -72,7 +76,7 @@ def status():
 
 def stop():
     print("停止backtest server...")
-    pid = find_backtest_process()
+    pid, _ = find_backtest_process()
     if pid is None:
         print("backtest server未启动")
         return

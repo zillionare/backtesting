@@ -1,6 +1,8 @@
 import datetime
 import os
 import unittest
+from multiprocessing.sharedctypes import Value
+from unittest import mock
 
 from backtest.feed.filefeed import FileFeed
 from tests import data_dir
@@ -25,13 +27,22 @@ class FileFeedTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bars[-1]["frame"], datetime.datetime(2022, 3, 10, 15))
 
     async def test_get_close_price(self):
-        codes = ["002537.XSHE", "063717.XSHG"]
+        codes = ["002537.XSHE", "603717.XSHG"]
         prices = await self.feed.get_close_price(codes, datetime.date(2022, 3, 10))
         print(prices)
 
+        self.assertAlmostEqual(prices["002537.XSHE"], 9.68, 2)
+        self.assertAlmostEqual(prices["603717.XSHG"], 12.33, 2)
+
     async def test_get_trade_price_limits(self):
         code = "002537.XSHE"
-        limits = await self.feed.get_trade_price_limits(
+        dt, high, low = await self.feed.get_trade_price_limits(
             code, datetime.date(2022, 3, 10)
         )
-        print(limits)
+
+        self.assertAlmostEqual(high, 9.68, 2)
+        self.assertAlmostEqual(low, 7.92, 2)
+
+        self.feed.price_limits = {}
+        with self.assertRaises(ValueError):
+            await self.feed.get_trade_price_limits(code, datetime.date(2022, 3, 10))

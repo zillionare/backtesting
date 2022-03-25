@@ -55,6 +55,9 @@ psutil = "^5.9.0"
 tqdm = "^4.63.0"
 requests = "^2.27.1"
 pandas = "^1.4.1"
+pytest-asyncio = {version = "^0.18.2", extras = ["test"]}
+sanic-testing = {version = "^0.8.2", extras = ["test"]}
+Jinja2 = {version = "~3.0", extras = ["doc"]}
 
 [tool.poetry.extras]
 test = [
@@ -63,7 +66,9 @@ test = [
     "isort",
     "flake8",
     "flake8-docstrings",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-asyncio",
+    "sanic-testing"
     ]
 
 dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml"]
@@ -74,7 +79,8 @@ doc = [
     "mkdocs-material",
     "mkdocstrings",
     "mkdocs-material-extension",
-    "mkdocs-autorefs"
+    "mkdocs-autorefs",
+    "Jinja2"
     ]
 
 [tool.poetry.scripts]

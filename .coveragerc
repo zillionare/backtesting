@@ -5,7 +5,6 @@ omit =
 [report]
 omit =
     */schema.py
-    */web/*
 exclude_lines =
     pragma: no cover
     def __repr__

@@ -1,30 +1,36 @@
 """Unit test package for backtest."""
-import asyncio
-import json
 import logging
 import os
-import signal
 import socket
-import subprocess
-import sys
 import uuid
 from contextlib import closing
 from typing import Union
 
-import aiohttp
 import arrow
 import cfg4py
 import numpy as np
 from coretypes import FrameType, bars_dtype
 from omicron.models.timeframe import TimeFrame
+from sanic import Sanic
 
+from backtest.app import application as app
 from backtest.config import get_config_dir
 from backtest.feed.filefeed import FileFeed
+from backtest.web.interfaces import bp
 
 os.environ[cfg4py.envar] = "DEV"
 cfg = cfg4py.init(get_config_dir())
 logger = logging.getLogger(__name__)
-port = None
+
+
+def init_interface_test():
+    cfg = cfg4py.init(get_config_dir())
+
+    path = cfg.server.path.rstrip("/")
+    bp.url_prefix = path
+    app.blueprint(bp)
+
+    return app
 
 
 def find_free_port():
@@ -34,95 +40,31 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-async def start_backtest_server(timeout=60):
-    global port
-
-    port = find_free_port()
-
-    # account = os.environ["JQ_ACCOUNT"]
-    # password = os.environ["JQ_PASSWORD"]
-    # jq.auth(account, password)
-
-    process = subprocess.Popen(
-        [sys.executable, "-m", "backtest.app", "start", f"--port={port}"],
-        env=os.environ,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    for i in range(timeout * 10, 0, -1):
-        await asyncio.sleep(0.1)
-        if process.poll() is not None:
-            # already exit, due to finish or fail
-            out, err = process.communicate()
-            logger.warning(
-                "subprocess exited, %s: %s", process.pid, out.decode("utf-8")
-            )
-            raise subprocess.SubprocessError(err.decode("utf-8"))
-
-        if await is_backtest_server_alive(port):
-            # return the process id, the caller should shutdown it later
-            logger.info(
-                "backtest server(%s) is listen on %s",
-                process.pid,
-                f"http://localhost:{port}",
-            )
-
-            return process
-
-    os.kill(process.pid, signal.SIGINT)
-    raise TimeoutError("backtest server is not started.")
-
-
-async def is_backtest_server_alive(port):
-    url = f"http://localhost:{port}/backtest/api/trade/v0.2/status"
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                logger.info("url: %s, status: %s", url, resp.status)
-                return resp.status == 200
-    except Exception:
-        return False
-
-
 async def post(cmd: str, token: str, data):
-    global port
-
-    url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
-
-    logger.info("post %s", url)
+    url = f"/backtest/api/trade/v0.2/{cmd}"
 
     headers = {
         "Authorization": f"Token {token}",
         "Request-ID": uuid.uuid4().hex,
     }
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data, headers=headers) as resp:
-                return await resp.json()
-    except Exception:
+        _, response = await app.asgi_client.post(url, json=data, headers=headers)
+        return response.json
+    except Exception as e:
+        logger.exception(e)
         return None
 
 
 async def get(cmd: str, token: str, data=None):
-    global port
-
-    url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
-    logger.info("get %s", url)
+    url = f"/backtest/api/trade/v0.2/{cmd}"
 
     headers = {
         "Authorization": f"Token {token}",
         "Request-ID": uuid.uuid4().hex,
     }
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, json=data, headers=headers) as resp:
-                if resp.content_type == "application/json":
-                    return await resp.json()
-                elif resp.content_type == "text/plain":
-                    return await resp.text()
-                else:
-                    return await resp.content.read()
+        _, response = await app.asgi_client.get(url, headers=headers)
+        return response.json
     except Exception as e:
         logger.exception(e)
         return None

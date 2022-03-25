@@ -35,6 +35,11 @@ async def list_accounts(request):
     accounts = request.app.ctx.accounts
 
     result = accounts.list_accounts()
+    for account in result:
+        date = account["account_start_date"]
+        if date is not None:
+            account["account_start_date"] = arrow.get(date).format("YYYY-MM-DD")
+
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
@@ -63,7 +68,7 @@ async def sell(request):
     order_time = arrow.get(params["order_time"]).naive
 
     result = await request.ctx.broker.sell(security, price, volume, order_time)
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(result)
 
 
 @bp.route("position", methods=["POST", "GET"])
@@ -103,7 +108,7 @@ async def get_returns(request):
     else:
         date = arrow.get(params.get("date")).date()
 
-    result = request.ctx.broker.get_returns(date)
+    result = request.ctx.broker.get_returns(date).tolist()
 
     return response.json(make_response(GenericErrCode.OK, data=result))
 
