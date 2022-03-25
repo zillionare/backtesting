@@ -30,9 +30,13 @@ class Config(object):
     class server:
         path: Optional[str] = None
 
-        port: Optional[int] = None
+    class feed:
+        type: Optional[str] = None
 
-    accounts: Optional[list] = None
+        class filefeed:
+            bars_path: Optional[str] = None
+
+            limits_path: Optional[str] = None
 
     class redis:
         dsn: Optional[str] = None

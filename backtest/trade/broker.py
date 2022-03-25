@@ -135,8 +135,8 @@ class Broker:
             "assets": self.assets,
             "capital": self.capital,
             "last_trade": self.last_trade_date,
-            "trade_count": len(self.transactions),
-            "trades": self.transactions,
+            "trade_count": len(self.trades),
+            "closed": len(self.transactions),
             "earnings": self.assets - self.capital,
             "returns": self.get_returns().tolist(),
         }

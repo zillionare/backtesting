@@ -1,6 +1,5 @@
-# Installation
 
-## docker
+# 以docker容器运行
 
 docker run -d --name bt -v /host/config:/config -e PORT=3180 -p 3180:3180 backtest
 
@@ -38,44 +37,26 @@ server:
     port: 3180
 ```
 
-## Stable release
+# 本地安装运行
 
 To install zillionare-backtest, run this command in your
 terminal:
 
 ``` console
-$ pip install backtest
+$ pip install zillionare-backtest
 ```
 
-This is the preferred method to install zillionare-backtest, as it will always install the most recent stable release.
-
-If you don't have [pip][] installed, this [Python installation guide][]
-can guide you through the process.
-
-## From source
-
-The source for zillionare-backtest can be downloaded from
-the [Github repo][].
-
-You can either clone the public repository:
-
+安装完成后，通过命令启动服务：
 ``` console
-$ git clone git://github.com/zillionare/backtest
+bt start
 ```
 
-Or download the [tarball][]:
-
+终止服务：
 ``` console
-$ curl -OJL https://github.com/zillionare/backtest/tarball/master
+bt stop
 ```
 
-Once you have a copy of the source, you can install it with:
-
+查看服务状态：
 ``` console
-$ pip install .
+bt status
 ```
-
-  [pip]: https://pip.pypa.io
-  [Python installation guide]: http://docs.python-guide.org/en/latest/starting/installation/
-  [Github repo]: https://github.com/%7B%7B%20cookiecutter.github_username%20%7D%7D/%7B%7B%20cookiecutter.project_slug%20%7D%7D
-  [tarball]: https://github.com/%7B%7B%20cookiecutter.github_username%20%7D%7D/%7B%7B%20cookiecutter.project_slug%20%7D%7D/tarball/master

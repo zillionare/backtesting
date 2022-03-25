@@ -85,7 +85,7 @@ async def is_backtest_server_alive(port):
         return False
 
 
-async def post(cmd: str, data):
+async def post(cmd: str, token: str, data):
     global port
 
     url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
@@ -93,7 +93,7 @@ async def post(cmd: str, data):
     logger.info("post %s", url)
 
     headers = {
-        "Authorization": f"Token {cfg.accounts[0]['token']}",
+        "Authorization": f"Token {token}",
         "Request-ID": uuid.uuid4().hex,
     }
     try:
@@ -104,14 +104,14 @@ async def post(cmd: str, data):
         return None
 
 
-async def get(cmd: str, data=None):
+async def get(cmd: str, token: str, data=None):
     global port
 
     url = f"http://localhost:{port}/backtest/api/trade/v0.2/{cmd}"
     logger.info("get %s", url)
 
     headers = {
-        "Authorization": f"Token {cfg.accounts[0]['token']}",
+        "Authorization": f"Token {token}",
         "Request-ID": uuid.uuid4().hex,
     }
     try:

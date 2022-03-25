@@ -16,12 +16,9 @@ from backtest.trade.trade import Trade
 from backtest.trade.types import EntrustError, EntrustSide, position_dtype
 from tests import create_file_feed
 
-app = Sanic("backtest")
-
 
 class BrokerTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        global app
         cfg4py.init(get_config_dir())
 
         try:

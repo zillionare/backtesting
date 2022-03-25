@@ -28,15 +28,8 @@ logging:
       - console
       - file
     level: INFO
-
 metrics:
   risk_free_rate: 0.03
   annual_days: 252
 server:
   path: /backtest/api/trade/v0.2/
-  port: 3180
-accounts:
-  - name: "aaron"
-    cash: 1000000
-    commission: 0.0001
-    token: "abcd"
