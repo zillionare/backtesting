@@ -56,16 +56,16 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             for v in actual["data"]:
                 self.assertAlmostEqual(v["price"], price, 2)
 
-            sum_shares = np.sum([v["shares"] for v in actual["data"]])
+            sum_shares = np.sum([v["volume"] for v in actual["data"]])
             self.assertEqual(sum_shares, shares)
-            sum_fee = np.sum([v["fee"] for v in actual["data"]])
+            sum_fee = np.sum([v["trade_fees"] for v in actual["data"]])
             self.assertEqual(sum_fee, price * shares * commission)
         else:
             self.assertAlmostEqual(actual["data"]["price"], price, 2)
 
-            self.assertEqual(actual["data"]["shares"], shares)
+            self.assertEqual(actual["data"]["volume"], shares)
             self.assertAlmostEqual(
-                actual["data"]["fee"], price * shares * commission, 2
+                actual["data"]["trade_fees"], price * shares * commission, 2
             )
 
     async def test_buy(self):

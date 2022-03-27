@@ -1,9 +1,31 @@
+import logging
+import os
+import pickle
+
 from backtest.common.errors import AccountConflictError
+from backtest.config import home_dir
 from backtest.trade.broker import Broker
+
+logger = logging.getLogger(__name__)
 
 
 class Accounts:
     _brokers = {}
+
+    def on_startup(self):
+        state_file = os.path.join(home_dir(), "state.pkl")
+        try:
+            with open(state_file, "rb") as f:
+                self._brokers = pickle.load(f)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.exception(e)
+
+    def on_exit(self):
+        state_file = os.path.join(home_dir(), "state.pkl")
+        with open(state_file, "wb") as f:
+            pickle.dump(self._brokers, f)
 
     def get_broker(self, token):
         return self._brokers.get(token)

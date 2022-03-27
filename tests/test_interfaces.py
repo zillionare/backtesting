@@ -60,7 +60,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         data = response["data"]
         self.assertEqual(data["security"], "002537.XSHE")
         self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
-        self.assertEqual(data["shares"], 500)
+        self.assertEqual(data["volume"], 500)
 
     async def test_sell(self):
         response = await post(
@@ -89,11 +89,11 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         tx = response["data"][0]
         self.assertEqual(tx["security"], "002537.XSHE")
-        self.assertEqual(tx["shares"], 500)
+        self.assertEqual(tx["volume"], 500)
         self.assertAlmostEqual(tx["price"], 10.45, 2)
 
     async def test_position(self):
-        response = await get("position", self.token)
+        response = await get("positions", self.token)
         self.assertListEqual([], response["data"])
 
         await post(
@@ -109,13 +109,13 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        response = await get("position", self.token)
+        response = await get("positions", self.token)
         position = response["data"][0]
         self.assertEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
-        response = await get("position", self.token, {"date": "2022-03-07"})
+        response = await get("positions", self.token, {"date": "2022-03-07"})
         position = response["data"][0]
 
         self.assertAlmostEqual(position["security"], "002537.XSHE")
@@ -125,7 +125,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
     async def test_balance(self):
         "this also test info, available_money, available_shares, metrics, get_returns"
         balance = (await get("balance", self.token))["data"]
-        self.assertEqual(balance["cash"], 1_000_000)
+        self.assertEqual(balance["available"], 1_000_000)
         self.assertEqual(balance["total"], 1_000_000)
         self.assertAlmostEqual(balance["pnl"], 0, 2)
 
@@ -143,14 +143,14 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         balance = (await get("balance", self.token))["data"]
-        self.assertAlmostEqual(balance["cash"], 995285.289, 2)
+        self.assertAlmostEqual(balance["available"], 995285.289, 2)
         self.assertAlmostEqual(balance["market_value"], 4750.0, 2)
         self.assertAlmostEqual(balance["total"], 1000035.289, 2)
         self.assertAlmostEqual(balance["pnl"], 35.289, 2)
         self.assertAlmostEqual(balance["ppnl"], 35.289 / 1_000_000, 2)
 
         info = (await get("info", self.token))["data"]
-        self.assertEqual(info["start"], "2022-03-01T10:04:00")
+        self.assertEqual(info["start"], "2022-03-01")
         self.assertAlmostEqual(info["assets"], 1000035.289, 2)
         self.assertAlmostEqual(info["earnings"], 35.289, 2)
 

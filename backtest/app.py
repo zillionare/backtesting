@@ -16,6 +16,7 @@ application = Sanic("backtest")
 logger = logging.getLogger(__name__)
 
 
+@application.listener("before_server_start")
 async def application_init(app, *args):
     cfg = cfg4py.get_instance()
 
@@ -40,6 +41,13 @@ async def application_init(app, *args):
 
     app.ctx.feed = feed
     app.ctx.accounts = Accounts()
+    app.ctx.accounts.on_startup()
+
+
+@application.listener("after_server_stop")
+async def application_exit(app, *args):
+    accounts = app.ctx.accounts
+    accounts.on_exit()
 
 
 def start(port: int):
@@ -52,7 +60,6 @@ def start(port: int):
 
     application.blueprint(bp)
 
-    application.register_listener(application_init, "before_server_start")
     application.run(host="0.0.0.0", port=port, register_sys_signals=True)
     logger.info("backtest server stopped")
 

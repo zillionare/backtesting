@@ -12,7 +12,6 @@ import sys
 from os import path
 
 import cfg4py
-from termcolor import colored
 
 logger = logging.getLogger(__name__)
 
@@ -29,3 +28,13 @@ def get_config_dir():
 
     sys.path.insert(0, _dir)
     return _dir
+
+
+def home_dir():
+    server_role = os.environ.get(cfg4py.envar)
+
+    if server_role == "DEV":
+        os.makedirs("/tmp/backtest", exist_ok=True)
+        return "/tmp/backtest"
+
+    return path.expanduser("~/zillionare/backtest/")
