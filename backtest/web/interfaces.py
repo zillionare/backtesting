@@ -195,7 +195,7 @@ async def metrics(request):
         end = arrow.get(end).date()
 
     metrics = request.ctx.broker.metrics(start, end)
-    metrics["start"] = metrics["start"].isoformat()
-    metrics["end"] = metrics["end"].isoformat()
+    metrics["start"] = arrow.get(metrics["start"]).format("YYYY-MM-DD")
+    metrics["end"] = arrow.get(metrics["end"]).format("YYYY-MM-DD")
 
     return response.json(make_response(GenericErrCode.OK, data=metrics))
