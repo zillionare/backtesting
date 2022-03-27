@@ -35,6 +35,7 @@ server:
   path: /backtest/api/trade/v0.2/
 
 feed:
+  # either file or zillionare
   type: file
   filefeed:
     bars_path: /apps/backtest/tests/data/bars_1m.pkl

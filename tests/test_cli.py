@@ -13,16 +13,15 @@ class CliTest(unittest.TestCase):
         os.environ["http_proxy"] = ""
         os.environ["all_proxy"] = ""
 
+        port = find_free_port()
+        cli.status()
+
+        cli.start(port)
+
         state_file = os.path.join(home_dir(), "state.pkl")
         if os.path.exists(state_file):
             os.remove(state_file)
 
-        port = find_free_port()
-        cli.status()
-        cli.start(port)
         cli.stop()
 
-        # check pickle
-        with open(state_file, "rb") as f:
-            brokers = pickle.load(f)
-            self.assertDictEqual({}, brokers)
+        self.assertTrue(os.path.exists(state_file))

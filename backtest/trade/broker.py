@@ -508,11 +508,14 @@ class Broker:
         held_secs = [pos[0] for pos in positions]
 
         market_value = 0
-        feed = get_app_context().feed
-        closes = await feed.get_close_price(held_secs, dt)
 
-        for sec, shares, sellable, _ in positions:
-            market_value += closes[sec] * shares
+        # 如果使用空列表去查询数据，会耗时较长
+        if len(held_secs) > 0:
+            feed = get_app_context().feed
+            closes = await feed.get_close_price(held_secs, dt)
+
+            for sec, shares, sellable, _ in positions:
+                market_value += closes[sec] * shares
 
         self._assets[dt] = self.cash + market_value
         logger.info(
