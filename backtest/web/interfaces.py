@@ -4,7 +4,7 @@ import arrow
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import GenericErrCode
+from backtest.common.errors import AccountConflictError, GenericErrCode
 from backtest.common.helper import make_response, protected
 
 bp = Blueprint("backtest")
@@ -25,8 +25,21 @@ async def create_account(request):
     token = params["token"]
     commission = params["commission"]
 
+    if any([name is None, capital is None, token is None, commission is None]):
+        msg = f"必须传入name: {name}, capital: {capital}, token: {token}, commission: {commission}"
+
+        return response.text(f"Bad parameter: {msg}", status=400)
+
     accounts = request.app.ctx.accounts
-    result = accounts.create_account(token, name, capital, commission)
+
+    try:
+        result = accounts.create_account(token, name, capital, commission)
+        start = result["account_start_date"]
+        if start is not None:
+            result["account_start_date"] = arrow.get(start).format("YYYY-MM-DD")
+    except AccountConflictError as e:
+        return response.text(e.message, status=400)
+
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
@@ -71,9 +84,9 @@ async def sell(request):
     return response.json(result)
 
 
-@bp.route("position", methods=["POST", "GET"])
+@bp.route("positions", methods=["POST", "GET"])
 @protected
-async def position(request):
+async def positions(request):
     params = request.json or {}
 
     if params is None or params.get("date") is None:
@@ -92,8 +105,13 @@ async def position(request):
 async def info(request):
     result = request.ctx.broker.info
 
-    result["last_trade"] = result["last_trade"].isoformat()
-    result["start"] = result["start"].isoformat()
+    last_trade = result["last_trade"]
+    if last_trade is not None:
+        result["last_trade"] = arrow.get(last_trade).format("YYYY-MM-DD")
+
+    start = result["start"]
+    if start is not None:
+        result["start"] = arrow.get(start).format("YYYY-MM-DD")
 
     return response.json(make_response(GenericErrCode.OK, data=result))
 
@@ -121,7 +139,7 @@ async def available_money(request):
     return response.json(make_response(GenericErrCode.OK, data=cash))
 
 
-@bp.route("available_shares", methods=["GET"])
+@bp.route("available_shares", methods=["GET", "POST"])
 @protected
 async def available_shares(request):
     code = request.args.get("code")
@@ -153,7 +171,7 @@ async def balance(request):
             data={
                 "account": account,
                 "pnl": pnl,
-                "cash": cash,
+                "available": cash,
                 "market_value": market_value,
                 "total": total,
                 "ppnl": ppnl,

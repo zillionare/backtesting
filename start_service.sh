@@ -6,7 +6,6 @@ fi
 echo "本地测试环境，将初始化redis"
 
 export TZ=Asia/Shanghai
-sudo -E apt-get update
 
 echo "初始化redis容器"
 sudo docker run -d --name tox-redis -p 6379:6379 redis

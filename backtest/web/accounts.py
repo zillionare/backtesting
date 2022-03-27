@@ -1,3 +1,4 @@
+from backtest.common.errors import AccountConflictError
 from backtest.trade.broker import Broker
 
 
@@ -11,11 +12,21 @@ class Accounts:
         return token in self._brokers
 
     def create_account(self, token: str, name: str, capital: float, commission: float):
-        if token not in self._brokers:
-            broker = Broker(name, capital, commission)
-            self._brokers[token] = broker
-        else:
+        """创建新账户
+
+        为防止意外使用了他人的token，此方法会检查token,name对是否存在且相同。如果token存在，name不同，则认为是意外使用了他人的token，抛出AccountConflictError异常。
+
+        如果之前token,name对已经存在，则调用此方法时会重置账户。
+        """
+        if token in self._brokers:
             broker = self._brokers[token]
+            if broker.account_name != name:
+                msg = f"{token[-4:]}已被{broker.name}账户使用，不能创建{name}账户"
+
+                raise AccountConflictError(msg)
+
+        broker = Broker(name, capital, commission)
+        self._brokers[token] = broker
 
         return {
             "account_name": name,

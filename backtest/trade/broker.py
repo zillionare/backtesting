@@ -127,7 +127,7 @@ class Broker:
             ‒ assets: 当前资产
             ‒ captial: 本金
             ‒ last_trade: 最后一笔交易时间
-            ‒ 交易笔数
+            ‒ trades: 交易笔数
         """
         return {
             "start": self.account_start_date,
@@ -135,7 +135,7 @@ class Broker:
             "assets": self.assets,
             "capital": self.capital,
             "last_trade": self.last_trade_date,
-            "trade_count": len(self.trades),
+            "trades": len(self.trades),
             "closed": len(self.transactions),
             "earnings": self.assets - self.capital,
             "returns": self.get_returns().tolist(),
@@ -372,7 +372,7 @@ class Broker:
                 dst = tf.int2date(dst)
                 self._unclosed_trades[dst] = self._unclosed_trades[src].copy()
 
-    def _append_unclosed_trades(self, tid, date: datetime.date):
+    def _update_unclosed_trades(self, tid, date: datetime.date):
         """记录每日持有的未平仓交易
 
         Args:
@@ -401,7 +401,7 @@ class Broker:
 
         trade = Trade(en.eid, en.security, price, filled, fee, en.side, close_time)
         self.trades[trade.tid] = trade
-        self._append_unclosed_trades(trade.tid, close_time.date())
+        self._update_unclosed_trades(trade.tid, close_time.date())
         self._update_position(trade, close_time.date())
 
         logger.info(
@@ -575,6 +575,9 @@ class Broker:
 
                 if trade.closed:
                     closed_trades.append(tid)
+
+                if to_sell == 0:
+                    break
             else:  # no more unclosed trades, even if to_sell > 0
                 break
 

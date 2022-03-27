@@ -33,3 +33,9 @@ class NoDataForMatchError(Error):
     """缺少撮合数据"""
 
     pass
+
+
+class AccountConflictError(Error):
+    """账户冲突"""
+
+    pass

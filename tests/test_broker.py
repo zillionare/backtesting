@@ -164,7 +164,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(0, len(broker.get_unclosed_trades(datetime.date(2022, 3, 3))))
 
-        broker._append_unclosed_trades(0, datetime.date(2022, 3, 3))
+        broker._update_unclosed_trades(0, datetime.date(2022, 3, 3))
         self.assertListEqual([0], broker.get_unclosed_trades(datetime.date(2022, 3, 3)))
 
         self.assertListEqual([0], broker.get_unclosed_trades(datetime.date(2022, 3, 4)))
@@ -181,7 +181,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 datetime.date(2022, 3, 10),
             ]
         ):
-            broker._append_unclosed_trades(i, dt)
+            broker._update_unclosed_trades(i, dt)
 
         self.assertEqual(6, len(broker._unclosed_trades))
         self.assertListEqual([0], broker._unclosed_trades[datetime.date(2022, 3, 3)])

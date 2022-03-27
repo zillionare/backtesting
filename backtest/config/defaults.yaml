@@ -33,3 +33,9 @@ metrics:
   annual_days: 252
 server:
   path: /backtest/api/trade/v0.2/
+
+feed:
+  type: file
+  filefeed:
+    bars_path: /apps/backtest/tests/data/bars_1m.pkl
+    limits_path: /apps/backtest/tests/data/limits.pkl

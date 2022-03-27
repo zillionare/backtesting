@@ -53,11 +53,11 @@ class Trade:
             "tid": str(self.tid),
             "eid": str(self.eid),
             "security": self.security,
-            "side": str(self.side),
+            "order_side": str(self.side),
             "price": self.price,
-            "shares": self.shares,
+            "volume": self.shares,
             "time": self.time.isoformat(),
-            "fee": self.fee,
+            "trade_fees": self.fee,
         }
 
     def sell(
