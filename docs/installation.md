@@ -1,7 +1,7 @@
 
 # 以docker容器运行
 
-docker run -d --name bt -v /host/config:/config -e PORT=3180 -p 3180:3180 backtest
+docker run -d --name bt -v /host/config:/config -e port=3180 -p 3180:3180 backtest
 
 上述命令中，将本地配置文件目录/host/config映射到容器中的/config目录，并且指定环境变量PORT=3180,并且将容器的3180端口映射到本地的3180端口。这里本地配置文件目录映射是必须的，否则服务器无法启动。
 

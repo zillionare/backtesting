@@ -46,10 +46,18 @@ class Accounts:
                 msg = f"{token[-4:]}已被{broker.name}账户使用，不能创建{name}账户"
 
                 raise AccountConflictError(msg)
+            else:
+                return {
+                    "account_name": broker.account_name,
+                    "token": token,
+                    "account_start_date": broker.account_start_date,
+                    "cash": broker.cash,
+                }
 
         broker = Broker(name, capital, commission)
         self._brokers[token] = broker
 
+        logger.info("新建账户， token:%s, %s", token, broker)
         return {
             "account_name": name,
             "token": token,

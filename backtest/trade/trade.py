@@ -48,7 +48,7 @@ class Trade:
     def __str__(self):
         return f"证券代码: {self.security}\n成交方向: {self.side}\n成交均价: {self.price}\n数量: {self.shares}\n手续费: {self.fee}\n委托号: {self.eid}\n成交号: {self.tid}\n成交时间: {self.time}\n"
 
-    def to_json(self):
+    def to_dict(self):
         return {
             "tid": str(self.tid),
             "eid": str(self.eid),

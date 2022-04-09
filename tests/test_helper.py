@@ -1,7 +1,9 @@
 import datetime
 import unittest
 
-from backtest.common.helper import make_response
+import numpy as np
+
+from backtest.common.helper import jsonify, make_response
 from backtest.trade.trade import Trade
 from backtest.trade.types import Entrust, EntrustError, EntrustSide
 
@@ -17,7 +19,7 @@ class HelperTest(unittest.TestCase):
 
         trade = Trade(order.eid, order.security, 1.0, 100, 0.5, EntrustSide.BUY, now)
 
-        response = make_response(EntrustError.SUCCESS, trade.to_json())
+        response = make_response(EntrustError.SUCCESS, trade.to_dict())
         del response["data"]["tid"]
 
         self.assertDictEqual(
@@ -36,3 +38,15 @@ class HelperTest(unittest.TestCase):
             },
             response,
         )
+
+    def test_obj_to_dict(self):
+        obj = {
+            "numpy": np.array([0.1, 0.2, 0.3]),
+            "time": datetime.datetime(2020, 1, 1, 0, 0, 0),
+            "list": [1, 2, 3],
+            "dict": {"a": 1, "b": 2},
+            "str": "hello",
+            "bool": False,
+        }
+
+        print(jsonify(obj))

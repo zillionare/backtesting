@@ -3,12 +3,13 @@ feed:
   filefeed:
     bars_path: /apps/backtest/tests/data/bars_1m.pkl
     limits_path: /apps/backtest/tests/data/limits.pkl
-redis:
-  dsn: redis://localhost:6379
+
 postgres:
   dsn: postgres://zillionare:123456@localhost:5432/zillionare
   enabled: true
 
+redis:
+  dsn: redis://localhost:6379
 influxdb:
   url: http://localhost:8086
   token: my-token

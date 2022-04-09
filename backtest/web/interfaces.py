@@ -1,11 +1,14 @@
 import logging
 
 import arrow
+from coretypes import FrameType
+from omicron import tf
 from sanic import response
 from sanic.blueprints import Blueprint
 
 from backtest.common.errors import AccountConflictError, GenericErrCode
-from backtest.common.helper import make_response, protected
+from backtest.common.helper import jsonify, make_response, protected
+from backtest.trade.broker import Broker
 
 bp = Blueprint("backtest")
 logger = logging.getLogger(__name__)
@@ -66,8 +69,12 @@ async def buy(request):
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    result = await request.ctx.broker.buy(security, price, volume, order_time)
-    return response.json(result)
+    try:
+        result = await request.ctx.broker.buy(security, price, volume, order_time)
+        return response.json(jsonify(result))
+    except Exception as e:
+        logger.exception(e)
+        return response.text(e.message, status=500)
 
 
 @bp.route("sell", methods=["POST"])
@@ -80,19 +87,23 @@ async def sell(request):
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    result = await request.ctx.broker.sell(security, price, volume, order_time)
-    return response.json(result)
+    try:
+        result = await request.ctx.broker.sell(security, price, volume, order_time)
+        return response.json(jsonify(result))
+    except Exception as e:
+        logger.exception(e)
+        return response.text(e.message, status=500)
 
 
 @bp.route("positions", methods=["POST", "GET"])
 @protected
 async def positions(request):
-    params = request.json or {}
+    date = request.args.get("date")
 
-    if params is None or params.get("date") is None:
+    if date is None:
         position = request.ctx.broker.position
     else:
-        date = arrow.get(params.get("date")).date()
+        date = arrow.get(date).date()
         position = request.ctx.broker.get_position(date)
 
     result = [{k: row[k] for k in position.dtype.names} for row in position]
@@ -199,3 +210,29 @@ async def metrics(request):
     metrics["end"] = arrow.get(metrics["end"]).format("YYYY-MM-DD")
 
     return response.json(make_response(GenericErrCode.OK, data=metrics))
+
+
+@bp.route("bills", methods=["GET"])
+@protected
+async def bills(request):
+    results = {}
+
+    broker: Broker = request.ctx.broker
+    results["trades"] = broker.trades
+    results["positions"] = {}
+    results["assets"] = []
+
+    for dt in tf.get_frames(
+        broker.account_start_date, broker.last_trade_date, FrameType.DAY
+    ):
+        date = tf.int2date(dt)
+
+        position = broker.get_position(date)
+        if position is not None:
+            results["positions"][date] = position
+
+        assest = broker.get_assets(date)
+        if assest is not None:
+            results["assets"].append([date, assest])
+
+    return response.json(make_response(GenericErrCode.OK, data=jsonify(results)))

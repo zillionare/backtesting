@@ -1,3 +1,4 @@
+import datetime
 import logging
 from enum import Enum
 from functools import wraps
@@ -84,3 +85,30 @@ def make_response(err_code: Union[Enum, int], data: Any = None, err_msg: str = N
         "msg": err_msg,
         "data": data,
     }
+
+
+def jsonify(obj) -> dict:
+    """convert object to jsonable dict
+
+    Args:
+        obj : object to convert
+
+    Returns:
+        A dict able to be json dumps
+    """
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    elif getattr(obj, "to_dict", False):
+        return jsonify(obj.to_dict())
+    elif getattr(obj, "tolist", False):  # for numpy array
+        return jsonify(obj.tolist())
+    elif getattr(obj, "isoformat", False):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: jsonify(v) for k, v in obj.items()}
+    elif getattr(obj, "__iter__", False):  # 注意dict类型也有__iter__
+        return [jsonify(x) for x in obj]
+    elif getattr(obj, "__dict__", False):
+        return {k: jsonify(v) for k, v in obj.__dict__.items()}
+    else:
+        raise ValueError(f"{obj} is not jsonable")

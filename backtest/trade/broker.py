@@ -13,7 +13,7 @@ from empyrical import (
     sharpe_ratio,
     sortino_ratio,
 )
-from omicron.extensions.np import math_round
+from omicron import array_price_equal, price_equal
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.common.errors import BadParameterError, NoDataForMatchError
@@ -99,7 +99,7 @@ class Broker:
             返回结果为[(security, heldings, sellable, price)]，其中price为该批持仓的均价。
         """
         if len(self._positions) == 0:
-            return None
+            return np.array([], dtype=position_dtype)
 
         if type(dt) == datetime.datetime:
             dt = dt.date()
@@ -282,7 +282,7 @@ class Broker:
         )
 
         logger.info(
-            "买入委托(%s): %s %d %.2f, 单号：%s",
+            "买入委托(%s): %s %d %s, 单号：%s",
             bid_time,
             security,
             bid_shares,
@@ -308,7 +308,7 @@ class Broker:
 
         # 排除在涨停板上买入的情况
         if self._reached_trade_price_limits(bars, bid_time, buy_limit_price):
-            logger.info("撮合失败: %s(%s)挂单时已达到涨停板", security, en.eid)
+            logger.info("撮合失败: %s挂单时(%s)已涨停", security, bid_time)
             return make_response(EntrustError.REACH_BUY_LIMIT)
 
         # 将买入数限制在可用资金范围内
@@ -426,7 +426,11 @@ class Broker:
         else:
             status = EntrustError.SUCCESS
 
-        return make_response(status, data=trade.to_json(), err_msg=msg)
+        return {
+            "status": status,
+            "msg": msg,
+            "data": trade,
+        }
 
     def _update_position(self, trade: Trade, bid_date: datetime.date):
         """更新持仓信息
@@ -596,8 +600,11 @@ class Broker:
         else:
             status = EntrustError.SUCCESS
 
-        result = [trade.to_json() for trade in exit_trades]
-        return make_response(status, err_msg=msg, data=result)
+        return {
+            "status": status,
+            "msg": msg,
+            "data": exit_trades,
+        }
 
     async def sell(
         self,
@@ -694,6 +701,7 @@ class Broker:
             mean_price,
             close_time,
         )
+
         return await self._fill_sell_order(en, mean_price, filled)
 
     def _get_sellable_shares(
@@ -722,17 +730,22 @@ class Broker:
         """
         去掉已达到涨停时的分钟线，或者价格高于买入价的bars
         """
-        close = math_round(bars["close"], 2)
-        limit_price = math_round(limit_price, 2)
-        return bars[(close != limit_price) & (price >= close)]
+        reach_limit = array_price_equal(bars["close"], limit_price)
+        bars = bars[(~reach_limit) & (price >= bars["close"])]
+        if bars.size == 0:
+            raise NoDataForMatchError("已涨停，或者委托价低于现价。")
+
+        return bars
 
     def _remove_for_sell(
         self, bars: np.ndarray, price: float, limit_price: float
     ) -> np.ndarray:
         """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交"""
-        close = math_round(bars["close"], 2)
-        limit_price = math_round(limit_price, 2)
-        bars = bars[(close != limit_price) & (close >= price)]
+        reach_limit = array_price_equal(bars["close"], limit_price)
+        bars = bars[(~reach_limit) & (bars["close"] >= price)]
+
+        if bars.size == 0:
+            raise NoDataForMatchError("已跌停，或者委托价高于现价。")
 
         return bars
 
@@ -743,8 +756,7 @@ class Broker:
         if len(cur_bar) == 0:
             raise BadParameterError(f"{bid_time} not in bars for matching")
 
-        current_price = math_round(cur_bar["close"], 2)[0]
-        return current_price == math_round(limit_price, 2)
+        return price_equal(cur_bar["close"], limit_price)
 
     def metrics(self, start: datetime.date = None, end: datetime.date = None):
         """
