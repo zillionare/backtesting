@@ -106,7 +106,12 @@ class Broker:
 
         days = np.array(sorted(list(self._positions.keys())))
 
-        pos = np.max(np.argwhere(days <= dt))
+        pos = np.argwhere(days <= dt)
+        if len(pos) == 0:
+            return np.array([], dtype=position_dtype)
+        else:
+            pos = np.argmax(pos)
+
         position = self._positions[days[pos]]
 
         # 如果获取日期大于days[pos]当前日期，则所有股份都变为可售
@@ -193,7 +198,11 @@ class Broker:
 
         days = np.array(sorted(list(self._assets.keys())))
 
-        pos = np.max(np.argwhere(days <= date))
+        pos = np.argwhere(days <= date)
+        if len(pos) == 0:  # 时间在所有的交易日之前，因此返回本金
+            return self.capital
+
+        pos = np.argmax(pos)
         return self._assets[days[pos]]
 
     @property
@@ -306,10 +315,11 @@ class Broker:
             logger.warning("failed to match %s, no data at %s", security, bid_time)
             raise NoDataForMatchError(f"没有{security}在{bid_time}当天的数据")
 
-        # 排除在涨停板上买入的情况
-        if self._reached_trade_price_limits(bars, bid_time, buy_limit_price):
-            logger.info("撮合失败: %s挂单时(%s)已涨停", security, bid_time)
-            return make_response(EntrustError.REACH_BUY_LIMIT)
+        # 移除掉涨停和价格高于委买价的bar后，看还能买多少股
+        bars, status = self._remove_for_buy(bars, bid_price, buy_limit_price)
+        if bars is None:
+            logger.info("委买失败：%s, %s, reason: %s", security, bid_time, status)
+            return {"status": status, "msg": str(status), "data": None}
 
         # 将买入数限制在可用资金范围内
         shares_to_buy = min(
@@ -321,8 +331,6 @@ class Broker:
         if shares_to_buy < 100:
             logger.info("委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid)
             return make_response(EntrustError.NO_CASH)
-
-        bars = self._remove_for_buy(bars, bid_price, buy_limit_price)
 
         mean_price, filled, close_time = self._match_buy(bars, shares_to_buy)
 
@@ -651,11 +659,10 @@ class Broker:
             logger.warning("failed to match: %s, no data at %s", security, bid_time)
             raise NoDataForMatchError(f"No data for {security} at {bid_time}")
 
-        if self._reached_trade_price_limits(bars, bid_time, sell_limit_price):
-            logger.info("撮合失败: (%s)，不能在跌停板上卖出。", security)
-            return make_response(EntrustError.REACH_SELL_LIMIT)
-
-        bars = self._remove_for_sell(bars, bid_price, sell_limit_price)
+        bars, status = self._remove_for_sell(bars, bid_price, sell_limit_price)
+        if bars is None:
+            logger.info("委卖失败：%s, %s, reason: %s", security, bid_time, status)
+            return {"status": status, "msg": str(status), "data": None}
 
         c, v = bars["close"], bars["volume"]
 
@@ -731,23 +738,32 @@ class Broker:
         去掉已达到涨停时的分钟线，或者价格高于买入价的bars
         """
         reach_limit = array_price_equal(bars["close"], limit_price)
-        bars = bars[(~reach_limit) & (price >= bars["close"])]
-        if bars.size == 0:
-            raise NoDataForMatchError("已涨停，或者委托价低于现价。")
+        bars = bars[(~reach_limit)]
 
-        return bars
+        if bars.size == 0:
+            return None, EntrustError.REACH_BUY_LIMIT
+
+        bars = bars[(bars["close"] <= price)]
+        if bars.size == 0:
+            return None, EntrustError.PRICE_NOT_MEET
+
+        return bars, None
 
     def _remove_for_sell(
         self, bars: np.ndarray, price: float, limit_price: float
     ) -> np.ndarray:
         """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交"""
         reach_limit = array_price_equal(bars["close"], limit_price)
-        bars = bars[(~reach_limit) & (bars["close"] >= price)]
+        bars = bars[(~reach_limit)]
 
         if bars.size == 0:
-            raise NoDataForMatchError("已跌停，或者委托价高于现价。")
+            return None, EntrustError.REACH_SELL_LIMIT
 
-        return bars
+        bars = bars[(bars["close"] >= price)]
+        if bars.size == 0:
+            return None, EntrustError.PRICE_NOT_MEET
+
+        return bars, None
 
     def _reached_trade_price_limits(
         self, bars: np.ndarray, bid_time: datetime.datetime, limit_price: float
@@ -801,7 +817,8 @@ class Broker:
 
         total_profit = assets[-1] - self.capital
 
-        returns = np.array([a / self.capital for a in assets]) - 1
+        assets = np.array(assets)
+        returns = assets[1:] / assets[:-1] - 1
         mean_return = np.mean(returns)
 
         sharpe = sharpe_ratio(returns, cfg.metrics.risk_free_rate)

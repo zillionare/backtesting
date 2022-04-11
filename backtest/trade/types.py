@@ -60,6 +60,7 @@ class EntrustError(IntEnum):
     REACH_BUY_LIMIT = -3
     REACH_SELL_LIMIT = -4
     NO_POSITION = -5
+    PRICE_NOT_MEET = -6
 
     def __str__(self):
         return {
@@ -70,6 +71,7 @@ class EntrustError(IntEnum):
             EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入",
             EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出",
             EntrustError.NO_POSITION: "没有持仓",
+            EntrustError.PRICE_NOT_MEET: "现价未达到委托价",
         }.get(self)
 
 
