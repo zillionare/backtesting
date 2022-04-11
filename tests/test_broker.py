@@ -10,11 +10,10 @@ from sanic import Sanic
 
 from backtest.common.helper import get_app_context
 from backtest.config import get_config_dir
-from backtest.feed.filefeed import FileFeed
 from backtest.trade.broker import Broker
 from backtest.trade.trade import Trade
 from backtest.trade.types import EntrustError, EntrustSide, position_dtype
-from tests import create_file_feed
+from tests import assert_deep_almost_equal, create_file_feed
 
 
 class BrokerTest(unittest.IsolatedAsyncioTestCase):
@@ -424,40 +423,32 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(hljh, 9.65, 500, datetime.datetime(2022, 3, 14, 9, 31))
         await broker.sell(hljh, 9.1, 5000, datetime.datetime(2022, 3, 14, 15))
 
-        actual = broker.metrics()
+        actual = await broker.metrics(ref=hljh)
         exp = {
             "start": datetime.datetime(2022, 3, 1, 9, 31),
-            "end": datetime.datetime(2022, 3, 14, 15),
+            "end": datetime.datetime(2022, 3, 14, 15, 0),
             "window": 10,
             "total_tx": 9,
-            "total_profit": -779.16,
-            "win_rate": 0.444,
-            "max_drawdown": -0.00826,
-            "mean_return": -0.00055013,
-            "sharpe": -303.672,
-            "sortino": -15.86,
-            "calmar": -15.7,
-            "annual_return": -0.1297,
-            "volatility": 0.0253,
+            "total_profit": -779.1590000001015,
+            "total_profit_rate": -0.0007791590000001016,
+            "win_rate": 0.4444444444444444,
+            "mean_return": -0.00010547676230510117,
+            "sharpe": -1.8621486479452378,
+            "sortino": -2.709005647235303,
+            "calmar": -5.999762684818712,
+            "max_drawdown": -0.004438621651363204,
+            "annual_return": -0.026630676555877364,
+            "volatility": 0.03038433272409164,
+            "ref": {
+                "code": hljh,
+                "win_rate": 0.5555555555555556,
+                "sharpe": 0.6190437353475076,
+                "max_drawdown": -0.17059373779725692,
+                "sortino": 1.0015572769806516,
+                "annual_return": 0.19278435493450163,
+                "total_profit_rate": 0.006315946578979492,
+                "volatility": 1.1038380776228978,
+            },
         }
 
-        for k in [
-            "start",
-            "end",
-            "window",
-            "total_tx",
-            "total_profit",
-            "win_rate",
-            "max_drawdown",
-            "mean_return",
-            "sharpe",
-            "sortino",
-            "calmar",
-            "annual_return",
-            "volatility",
-        ]:
-            v = exp[k]
-            if type(v) == float:
-                self.assertAlmostEqual(v, actual[k], 2)
-            else:
-                self.assertEqual(v, actual[k])
+        assert_deep_almost_equal(self, actual, exp, places=4)

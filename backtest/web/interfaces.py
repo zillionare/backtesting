@@ -14,7 +14,7 @@ bp = Blueprint("backtest")
 logger = logging.getLogger(__name__)
 
 
-@bp.route("status", methods=["GET", "POST"])
+@bp.route("status", methods=["GET"])
 async def status(request):
     return response.json({"status": "ok", "listen": request.url})
 
@@ -95,7 +95,7 @@ async def sell(request):
         return response.text(e.message, status=500)
 
 
-@bp.route("positions", methods=["POST", "GET"])
+@bp.route("positions", methods=["GET"])
 @protected
 async def positions(request):
     date = request.args.get("date")
@@ -111,7 +111,7 @@ async def positions(request):
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
-@bp.route("info", methods=["POST", "GET"])
+@bp.route("info", methods=["GET"])
 @protected
 async def info(request):
     result = request.ctx.broker.info
@@ -127,22 +127,16 @@ async def info(request):
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
-@bp.route("returns", methods=["POST", "GET"])
+@bp.route("returns", methods=["GET"])
 @protected
 async def get_returns(request):
-    params = request.json or {}
-
-    if params is None or params.get("date") is None:
-        date = None
-    else:
-        date = arrow.get(params.get("date")).date()
-
+    date = request.args.get("date")
     result = request.ctx.broker.get_returns(date).tolist()
 
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
-@bp.route("available_money", methods=["POST", "GET"])
+@bp.route("available_money", methods=["GET"])
 @protected
 async def available_money(request):
     cash = request.ctx.broker.cash
@@ -150,7 +144,7 @@ async def available_money(request):
     return response.json(make_response(GenericErrCode.OK, data=cash))
 
 
-@bp.route("available_shares", methods=["GET", "POST"])
+@bp.route("available_shares", methods=["GET"])
 @protected
 async def available_shares(request):
     code = request.args.get("code")
@@ -164,7 +158,7 @@ async def available_shares(request):
         return response.json(make_response(GenericErrCode.OK, data=shares.get(code, 0)))
 
 
-@bp.route("balance", methods=["POST", "GET"])
+@bp.route("balance", methods=["GET"])
 @protected
 async def balance(request):
     broker = request.ctx.broker
@@ -191,13 +185,12 @@ async def balance(request):
     )
 
 
-@bp.route("metrics", methods=["POST", "GET"])
+@bp.route("metrics", methods=["GET"])
 @protected
 async def metrics(request):
-    params = request.json or {}
-
-    start = params.get("start")
-    end = params.get("end")
+    start = request.args.get("start")
+    end = request.args.get("end")
+    ref = request.args.get("ref")
 
     if start:
         start = arrow.get(start).date()
@@ -205,11 +198,9 @@ async def metrics(request):
     if end:
         end = arrow.get(end).date()
 
-    metrics = request.ctx.broker.metrics(start, end)
-    metrics["start"] = arrow.get(metrics["start"]).format("YYYY-MM-DD")
-    metrics["end"] = arrow.get(metrics["end"]).format("YYYY-MM-DD")
+    metrics = await request.ctx.broker.metrics(start, end, ref)
 
-    return response.json(make_response(GenericErrCode.OK, data=metrics))
+    return response.json(make_response(GenericErrCode.OK, data=jsonify(metrics)))
 
 
 @bp.route("bills", methods=["GET"])
@@ -218,6 +209,8 @@ async def bills(request):
     results = {}
 
     broker: Broker = request.ctx.broker
+
+    results["tx"] = broker.transactions
     results["trades"] = broker.trades
     results["positions"] = {}
     results["assets"] = []

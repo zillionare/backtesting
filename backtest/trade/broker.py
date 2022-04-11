@@ -9,11 +9,13 @@ from empyrical import (
     annual_return,
     annual_volatility,
     calmar_ratio,
+    cum_returns_final,
     max_drawdown,
     sharpe_ratio,
     sortino_ratio,
 )
 from omicron import array_price_equal, price_equal
+from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.common.errors import BadParameterError, NoDataForMatchError
@@ -774,10 +776,48 @@ class Broker:
 
         return price_equal(cur_bar["close"], limit_price)
 
-    def metrics(self, start: datetime.date = None, end: datetime.date = None):
+    async def metrics(
+        self, start: datetime.date = None, end: datetime.date = None, ref: str = None
+    ) -> Dict:
         """
         获取指定时间段的账户指标
+
+        Args:
+            start: 开始时间
+            end: 结束时间
+            ref: 参考标的
+
+        Returns:
+            - start 回测起始时间
+            - end   回测结束时间
+            - window 资产暴露时间
+            - total_tx 发生的配对交易次数
+            - total_profit 总盈亏
+            - total_profit_rate 总盈亏率
+            - win_rate 胜率
+            - mean_return 每笔配对交易平均回报率
+            - sharpe    夏普比率
+            - max_drawdown 最大回撤
+            - sortino
+            - calmar
+            - annual_return 年化收益率
+            - volatility 波动率
+            - ref: dict
+                - win_rate
+                - sharpe
+                - max_drawdown
+                - sortino
+                - annual_return
+                - total_profit_rate
+                - volatility
         """
+        ANNUALIZATION_FACTOR = 252
+
+        try:
+            rf = cfg.metrics.risk_free_rate / ANNUALIZATION_FACTOR
+        except Exception:
+            rf = 0
+
         start = min(start or self.account_start_date, self.account_start_date)
         end = max(end or self.last_trade_date, self.account_start_date)
 
@@ -797,6 +837,7 @@ class Broker:
                 "window": window,
                 "total_tx": total_tx,
                 "total_profit": None,
+                "total_profit_rate": None,
                 "win_rate": None,
                 "mean_return": None,
                 "sharpe": None,
@@ -805,6 +846,7 @@ class Broker:
                 "max_drawdown": None,
                 "annual_return": None,
                 "volatility": None,
+                "ref": None,
             }
 
         # win_rate
@@ -821,8 +863,8 @@ class Broker:
         returns = assets[1:] / assets[:-1] - 1
         mean_return = np.mean(returns)
 
-        sharpe = sharpe_ratio(returns, cfg.metrics.risk_free_rate)
-        sortino = sortino_ratio(returns, cfg.metrics.risk_free_rate)
+        sharpe = sharpe_ratio(returns, rf)
+        sortino = sortino_ratio(returns, rf)
         calma = calmar_ratio(returns)
         mdd = max_drawdown(returns)
 
@@ -832,12 +874,32 @@ class Broker:
         # 年化波动率
         vr = annual_volatility(returns)
 
+        # 计算参考标的的相关指标
+        ref_bars = await Stock.get_bars_in_range(ref, FrameType.DAY, start, end)
+
+        if ref_bars.size < 2:
+            ref_results = None
+        else:
+            returns = ref_bars["close"][1:] / ref_bars["close"][:-1] - 1
+
+            ref_results = {
+                "code": ref,
+                "win_rate": np.count_nonzero(returns > 0) / len(returns),
+                "sharpe": sharpe_ratio(returns, rf),
+                "max_drawdown": max_drawdown(returns),
+                "sortino": sortino_ratio(returns, rf),
+                "annual_return": annual_return(returns),
+                "total_profit_rate": cum_returns_final(returns),
+                "volatility": annual_volatility(returns),
+            }
+
         return {
             "start": start,
             "end": end,
             "window": window,
             "total_tx": total_tx,
             "total_profit": total_profit,
+            "total_profit_rate": total_profit / self.capital,
             "win_rate": wr,
             "mean_return": mean_return,
             "sharpe": sharpe,
@@ -846,6 +908,7 @@ class Broker:
             "max_drawdown": mdd,
             "annual_return": ar,
             "volatility": vr,
+            "ref": ref_results,
         }
 
 

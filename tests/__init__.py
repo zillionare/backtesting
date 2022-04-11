@@ -55,7 +55,7 @@ async def post(cmd: str, token: str, data):
         return None
 
 
-async def get(cmd: str, token: str, data=None):
+async def get(cmd: str, token: str, **kwargs):
     url = f"/backtest/api/trade/v0.2/{cmd}"
 
     headers = {
@@ -63,7 +63,7 @@ async def get(cmd: str, token: str, data=None):
         "Request-ID": uuid.uuid4().hex,
     }
     try:
-        _, response = await app.asgi_client.get(url, headers=headers)
+        _, response = await app.asgi_client.get(url, headers=headers, params=kwargs)
         return response.json
     except Exception as e:
         logger.exception(e)
@@ -152,3 +152,51 @@ def create_file_feed():
     match_bars_file = os.path.join(data_dir(), "bars_1m.pkl")
     price_limits_file = os.path.join(data_dir(), "limits.pkl")
     return FileFeed(match_bars_file, price_limits_file)
+
+
+def assert_deep_almost_equal(test_case, expected, actual, *args, **kwargs):
+    """
+    copied from https://github.com/larsbutler/oq-engine/blob/master/tests/utils/helpers.py
+
+    Assert that two complex structures have almost equal contents.
+    Compares lists, dicts and tuples recursively. Checks numeric values
+    using test_case's :py:meth:`unittest.TestCase.assertAlmostEqual` and
+    checks all other values with :py:meth:`unittest.TestCase.assertEqual`.
+    Accepts additional positional and keyword arguments and pass those
+    intact to assertAlmostEqual() (that's how you specify comparison
+    precision).
+    :param test_case: TestCase object on which we can call all of the basic
+        'assert' methods.
+    :type test_case: :py:class:`unittest.TestCase` object
+    """
+    is_root = "__trace" not in kwargs
+    trace = kwargs.pop("__trace", "ROOT")
+    try:
+        if isinstance(expected, (int, float, complex)):
+            test_case.assertAlmostEqual(expected, actual, *args, **kwargs)
+        elif isinstance(expected, (list, tuple, np.ndarray)):
+            test_case.assertEqual(len(expected), len(actual))
+            for index in range(len(expected)):
+                v1, v2 = expected[index], actual[index]
+                assert_deep_almost_equal(
+                    test_case, v1, v2, __trace=repr(index), *args, **kwargs
+                )
+        elif isinstance(expected, dict):
+            test_case.assertEqual(set(expected), set(actual))
+            for key in expected:
+                assert_deep_almost_equal(
+                    test_case,
+                    expected[key],
+                    actual[key],
+                    __trace=repr(key),
+                    *args,
+                    **kwargs,
+                )
+        else:
+            test_case.assertEqual(expected, actual)
+    except AssertionError as exc:
+        exc.__dict__.setdefault("traces", []).append(trace)
+        if is_root:
+            trace = " -> ".join(reversed(exc.traces))
+            exc = AssertionError("%s\nTRACE: %s" % (exc.message, trace))
+        raise exc
