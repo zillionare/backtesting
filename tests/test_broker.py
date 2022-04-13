@@ -423,7 +423,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(hljh, 9.65, 500, datetime.datetime(2022, 3, 14, 9, 31))
         await broker.sell(hljh, 9.1, 5000, datetime.datetime(2022, 3, 14, 15))
 
-        actual = await broker.metrics(ref=hljh)
+        actual = await broker.metrics(baseline=hljh)
         exp = {
             "start": datetime.datetime(2022, 3, 1, 9, 31),
             "end": datetime.datetime(2022, 3, 14, 15, 0),

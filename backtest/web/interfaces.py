@@ -190,7 +190,7 @@ async def balance(request):
 async def metrics(request):
     start = request.args.get("start")
     end = request.args.get("end")
-    ref = request.args.get("ref")
+    baseline = request.args.get("baseline")
 
     if start:
         start = arrow.get(start).date()
@@ -198,7 +198,7 @@ async def metrics(request):
     if end:
         end = arrow.get(end).date()
 
-    metrics = await request.ctx.broker.metrics(start, end, ref)
+    metrics = await request.ctx.broker.metrics(start, end, baseline)
 
     return response.json(make_response(GenericErrCode.OK, data=jsonify(metrics)))
 
@@ -226,6 +226,6 @@ async def bills(request):
 
         assest = broker.get_assets(date)
         if assest is not None:
-            results["assets"].append([date, assest])
+            results["assets"].append({date: assest})
 
     return response.json(make_response(GenericErrCode.OK, data=jsonify(results)))

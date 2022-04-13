@@ -40,7 +40,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response["data"][0]["account_name"], "test")
 
     async def test_status(self):
-        response = await post("status", self.token, {})
+        response = await get("status", self.token)
         self.assertEqual("ok", response["status"])
 
     async def test_buy(self):
@@ -117,7 +117,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
-        response = await get("positions", self.token, {"date": "2022-03-07"})
+        response = await get("positions", self.token, date="2022-03-07")
         position = response["data"][0]
 
         self.assertAlmostEqual(position["security"], "002537.XSHE")
@@ -145,19 +145,19 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         balance = (await get("balance", self.token))["data"]
-        self.assertAlmostEqual(balance["available"], 995285.289, 2)
+        self.assertAlmostEqual(balance["available"], 995289.5289618492, 2)
         self.assertAlmostEqual(balance["market_value"], 4750.0, 2)
-        self.assertAlmostEqual(balance["total"], 1000035.289, 2)
-        self.assertAlmostEqual(balance["pnl"], 35.289, 2)
-        self.assertAlmostEqual(balance["ppnl"], 35.289 / 1_000_000, 2)
+        self.assertAlmostEqual(balance["total"], 1000039.528, 2)
+        self.assertAlmostEqual(balance["pnl"], 39.5289, 2)
+        self.assertAlmostEqual(balance["ppnl"], 39.5289 / 1_000_000, 2)
 
         info = (await get("info", self.token))["data"]
         self.assertEqual(info["start"], "2022-03-01")
-        self.assertAlmostEqual(info["assets"], 1000035.289, 2)
-        self.assertAlmostEqual(info["earnings"], 35.289, 2)
+        self.assertAlmostEqual(info["assets"], 1000039.5289618492, 2)
+        self.assertAlmostEqual(info["earnings"], 39.52896, 2)
 
         available_money = (await get("available_money", self.token))["data"]
-        self.assertAlmostEqual(995285.289, available_money, 2)
+        self.assertAlmostEqual(995289.5289, available_money, 2)
 
         available_shares = (await get("available_shares", self.token))["data"]
         self.assertEqual(available_shares["002537.XSHE"], 0)
@@ -208,7 +208,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        actual = (await get("metrics", self.token, ref=hljh))["data"]
+        actual = (await get("metrics", self.token, baseline=hljh))["data"]
         exp = {
             "start": datetime.datetime(2022, 3, 1, 9, 31),
             "end": datetime.datetime(2022, 3, 14, 15, 0),
@@ -224,7 +224,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "max_drawdown": -0.004438621651363204,
             "annual_return": -0.026630676555877364,
             "volatility": 0.03038433272409164,
-            "ref": {
+            "baseline": {
                 "code": hljh,
                 "win_rate": 0.5555555555555556,
                 "sharpe": 0.6190437353475076,

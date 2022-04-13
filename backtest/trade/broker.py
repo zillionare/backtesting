@@ -777,7 +777,10 @@ class Broker:
         return price_equal(cur_bar["close"], limit_price)
 
     async def metrics(
-        self, start: datetime.date = None, end: datetime.date = None, ref: str = None
+        self,
+        start: datetime.date = None,
+        end: datetime.date = None,
+        baseline: str = None,
     ) -> Dict:
         """
         获取指定时间段的账户指标
@@ -785,7 +788,7 @@ class Broker:
         Args:
             start: 开始时间
             end: 结束时间
-            ref: 参考标的
+            baseline: 参考标的
 
         Returns:
             - start 回测起始时间
@@ -802,7 +805,7 @@ class Broker:
             - calmar
             - annual_return 年化收益率
             - volatility 波动率
-            - ref: dict
+            - baseline: dict
                 - win_rate
                 - sharpe
                 - max_drawdown
@@ -811,10 +814,8 @@ class Broker:
                 - total_profit_rate
                 - volatility
         """
-        ANNUALIZATION_FACTOR = 252
-
         try:
-            rf = cfg.metrics.risk_free_rate / ANNUALIZATION_FACTOR
+            rf = cfg.metrics.risk_free_rate / cfg.metrics.annual_days
         except Exception:
             rf = 0
 
@@ -846,7 +847,7 @@ class Broker:
                 "max_drawdown": None,
                 "annual_return": None,
                 "volatility": None,
-                "ref": None,
+                "baseline": None,
             }
 
         # win_rate
@@ -875,23 +876,28 @@ class Broker:
         vr = annual_volatility(returns)
 
         # 计算参考标的的相关指标
-        ref_bars = await Stock.get_bars_in_range(ref, FrameType.DAY, start, end)
+        if baseline is not None:
+            ref_bars = await Stock.get_bars_in_range(
+                baseline, FrameType.DAY, start, end
+            )
 
-        if ref_bars.size < 2:
-            ref_results = None
+            if ref_bars.size < 2:
+                ref_results = None
+            else:
+                returns = ref_bars["close"][1:] / ref_bars["close"][:-1] - 1
+
+                ref_results = {
+                    "code": baseline,
+                    "win_rate": np.count_nonzero(returns > 0) / len(returns),
+                    "sharpe": sharpe_ratio(returns, rf),
+                    "max_drawdown": max_drawdown(returns),
+                    "sortino": sortino_ratio(returns, rf),
+                    "annual_return": annual_return(returns),
+                    "total_profit_rate": cum_returns_final(returns),
+                    "volatility": annual_volatility(returns),
+                }
         else:
-            returns = ref_bars["close"][1:] / ref_bars["close"][:-1] - 1
-
-            ref_results = {
-                "code": ref,
-                "win_rate": np.count_nonzero(returns > 0) / len(returns),
-                "sharpe": sharpe_ratio(returns, rf),
-                "max_drawdown": max_drawdown(returns),
-                "sortino": sortino_ratio(returns, rf),
-                "annual_return": annual_return(returns),
-                "total_profit_rate": cum_returns_final(returns),
-                "volatility": annual_volatility(returns),
-            }
+            ref_results = None
 
         return {
             "start": start,
@@ -908,7 +914,7 @@ class Broker:
             "max_drawdown": mdd,
             "annual_return": ar,
             "volatility": vr,
-            "ref": ref_results,
+            "baseline": ref_results,
         }
 
 
