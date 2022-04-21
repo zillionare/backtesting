@@ -74,7 +74,7 @@ async def buy(request):
         return response.json(jsonify(result))
     except Exception as e:
         logger.exception(e)
-        return response.text(e.message, status=500)
+        return response.text(str(e), status=500)
 
 
 @bp.route("sell", methods=["POST"])
@@ -92,7 +92,7 @@ async def sell(request):
         return response.json(jsonify(result))
     except Exception as e:
         logger.exception(e)
-        return response.text(e.message, status=500)
+        return response.text(str(e), status=500)
 
 
 @bp.route("positions", methods=["GET"])
