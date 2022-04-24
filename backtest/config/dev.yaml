@@ -1,4 +1,9 @@
 logging:
+  handlers:
+    file:
+      class: logging.handlers.RotatingFileHandler
+      formatter: default
+      filename: /tmp/backtest.log
   root:
     handlers:
       - console
