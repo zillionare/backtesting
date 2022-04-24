@@ -1,3 +1,9 @@
+logging:
+  root:
+    handlers:
+      - console
+    level: INFO
+
 feed:
   type: zillionare
   filefeed:
