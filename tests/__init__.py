@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 def init_interface_test():
     cfg = cfg4py.init(get_config_dir())
 
+    cfg.feed.type = "file"
+    cfg.feed.filefeed.bars_path = os.path.join(data_dir(), "bars_1m.pkl")
+    cfg.feed.filefeed.limits_path = os.path.join(data_dir(), "limits.pkl")
+
     path = cfg.server.path.rstrip("/")
     bp.url_prefix = path
     app.blueprint(bp)

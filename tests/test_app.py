@@ -7,6 +7,7 @@ from backtest.app import application_init
 from backtest.config import get_config_dir
 from backtest.feed.filefeed import FileFeed
 from backtest.feed.zillionarefeed import ZillionareFeed
+from tests import data_dir
 
 
 class AppTest(unittest.IsolatedAsyncioTestCase):
@@ -23,5 +24,7 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(isinstance(application.ctx.feed, ZillionareFeed))
 
         cfg.feed.type = "file"
+        cfg.feed.filefeed.bars_path = os.path.join(data_dir(), "bars_1m.pkl")
+        cfg.feed.filefeed.limits_path = os.path.join(data_dir(), "limits.pkl")
         await application_init(application)
         self.assertTrue(isinstance(application.ctx.feed, FileFeed))

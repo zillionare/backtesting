@@ -36,10 +36,7 @@ server:
 
 feed:
   # either file or zillionare
-  type: file
-  filefeed:
-    bars_path: /apps/backtest/tests/data/bars_1m.pkl
-    limits_path: /apps/backtest/tests/data/limits.pkl
+  type: zillionare
 
 redis:
   dsn: redis://192.168.100.101:56379
