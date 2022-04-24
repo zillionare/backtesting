@@ -4,6 +4,7 @@ WORKDIR /
 COPY rootfs ./
 VOLUME config
 
+ARG bt_version
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PORT=7080
 
@@ -14,8 +15,8 @@ RUN sed -i s/archive.ubuntu.com/mirrors.aliyun.com/g /etc/apt/sources.list \
     && pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple \
     && pip3 install cython \
     && pip3 install numpy==1.22.3 \
-    && pip3 install "zillionare-omicron>=2.0.0.0.a26" --default-timeout=300 \
-    && pip3 install --pre "zillionare-backtest>=0.2.1a6" --default-timeout=300 -i https://pypi.org/simple \
+    && pip3 install "zillionare-omicron>=2.0.0.0.a27" --default-timeout=300 \
+    && pip3 install --pre "zillionare-backtest>=${bt_version}" --default-timeout=300 -i https://pypi.org/simple \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/log/backtest
 
