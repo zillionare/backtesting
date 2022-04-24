@@ -439,7 +439,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "max_drawdown": -0.004438621651363204,
             "annual_return": -0.026630676555877364,
             "volatility": 0.03038433272409164,
-            "ref": {
+            "baseline": {
                 "code": hljh,
                 "win_rate": 0.5555555555555556,
                 "sharpe": 0.6190437353475076,

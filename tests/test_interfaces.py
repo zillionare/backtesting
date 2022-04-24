@@ -64,6 +64,27 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
         self.assertEqual(data["volume"], 500)
 
+    async def test_market_buy(self):
+        response = await post(
+            "market_buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
+
+        self.assertEqual(response["status"], 0)
+
+        data = response["data"]
+        self.assertEqual(data["security"], "002537.XSHE")
+        self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
+        self.assertEqual(data["volume"], 500)
+
     async def test_sell(self):
         response = await post(
             "buy",
@@ -80,6 +101,36 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         response = await post(
             "sell",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "order_time": "2022-03-02 10:04:00",
+            },
+        )
+
+        tx = response["data"][0]
+        self.assertEqual(tx["security"], "002537.XSHE")
+        self.assertEqual(tx["volume"], 500)
+        self.assertAlmostEqual(tx["price"], 10.45, 2)
+
+    async def test_market_sell(self):
+        response = await post(
+            "buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
+
+        response = await post(
+            "market_sell",
             self.token,
             {
                 "security": "002537.XSHE",

@@ -265,6 +265,8 @@ class Broker:
 
         买入以尽可能实现委托为目标。如果可用资金不足，但能买入部分股票，则部分买入。
 
+        如果bid_price为None，则使用涨停价买入。
+
         Args:
             security : 证券代码
             bid_price : 委托价格。如果为None，则为市价委托

@@ -62,6 +62,18 @@ async def list_accounts(request):
 @bp.route("buy", methods=["POST"])
 @protected
 async def buy(request):
+    """买入
+
+    Args:
+        request : 参数以json方式传入， 包含：
+        security : 证券代码
+        price: 买入价格,如果为None，则意味着以市价买入
+        volume: 买入数量
+        order_time: 下单时间
+
+    Returns:
+        _description_
+    """
     params = request.json or {}
 
     security = params["security"]
@@ -71,6 +83,31 @@ async def buy(request):
 
     try:
         result = await request.ctx.broker.buy(security, price, volume, order_time)
+        return response.json(jsonify(result))
+    except Exception as e:
+        logger.exception(e)
+        return response.text(str(e), status=500)
+
+
+@bp.route("market_buy", methods=["POST"])
+@protected
+async def market_buy(request):
+    """市价买入
+
+    Args:
+        request : 参数以json方式传入， 包含：
+            security : 证券代码
+            volume: 买入数量
+            order_time: 下单时间
+    """
+    params = request.json or {}
+
+    security = params["security"]
+    volume = params["volume"]
+    order_time = arrow.get(params["order_time"]).naive
+
+    try:
+        result = await request.ctx.broker.buy(security, None, volume, order_time)
         return response.json(jsonify(result))
     except Exception as e:
         logger.exception(e)
@@ -89,6 +126,23 @@ async def sell(request):
 
     try:
         result = await request.ctx.broker.sell(security, price, volume, order_time)
+        return response.json(jsonify(result))
+    except Exception as e:
+        logger.exception(e)
+        return response.text(str(e), status=500)
+
+
+@bp.route("market_sell", methods=["POST"])
+@protected
+async def market_sell(request):
+    params = request.json or {}
+
+    security = params["security"]
+    volume = params["volume"]
+    order_time = arrow.get(params["order_time"]).naive
+
+    try:
+        result = await request.ctx.broker.sell(security, None, volume, order_time)
         return response.json(jsonify(result))
     except Exception as e:
         logger.exception(e)
