@@ -14,7 +14,7 @@ from empyrical import (
     sharpe_ratio,
     sortino_ratio,
 )
-from omicron import array_price_equal, price_equal
+from omicron import array_price_equal, math_round, price_equal
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
@@ -531,7 +531,7 @@ class Broker:
             closes = await feed.get_close_price(held_secs, dt)
 
             for sec, shares, sellable, _ in positions:
-                market_value += closes[sec] * shares
+                market_value += math_round(closes[sec], 2) * shares
 
         self._assets[dt] = self.cash + market_value
         logger.info(
