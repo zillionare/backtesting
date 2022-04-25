@@ -5,51 +5,22 @@ import unittest
 
 import cfg4py
 import omicron
-import pandas as pd
-from coretypes import FrameType
-from omicron.dal.influx.influxclient import InfluxClient
-from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
-from tests import data_dir
+from tests import data_populate
 
 
 class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        cfg = cfg4py.init(get_config_dir())
+        cfg4py.init(get_config_dir())
         try:
             await omicron.init()
         except omicron.core.errors.DataNotReadyError:
             tf.service_degrade()
 
-        url, token, bucket, org = (
-            cfg.influxdb.url,
-            cfg.influxdb.token,
-            cfg.influxdb.bucket_name,
-            cfg.influxdb.org,
-        )
-        self.client = InfluxClient(url, token, bucket, org)
-
-        # fill in influxdb
-        await self.client.drop_measurement("stock_bars_1d")
-        await self.client.drop_measurement("stock_bars_1m")
-        await self.client.drop_measurement("stock_bars_30m")
-        await self.client.drop_measurement("stock_bars_1w")
-
-        for ft in (FrameType.MIN1, FrameType.DAY):
-            file = os.path.join(data_dir(), f"bars_{ft.value}.pkl")
-            with open(file, "rb") as f:
-                bars = pickle.load(f)
-                await Stock.persist_bars(ft, bars)
-
-        df = pd.read_csv(
-            os.path.join(data_dir(), "limits.csv"), sep="\t", parse_dates=["time"]
-        )
-        limits = df.to_records(index=False)
-        limits.dtype.names = ["frame", "code", "high_limit", "low_limit"]
-        await Stock.save_trade_price_limits(limits, False)
+        await data_populate()
 
         self.feed = await BaseFeed.create_instance()
         return super().setUp()

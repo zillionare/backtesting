@@ -1,5 +1,4 @@
 import os
-import pickle
 import unittest
 
 from backtest import cli

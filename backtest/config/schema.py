@@ -33,11 +33,6 @@ class Config(object):
     class feed:
         type: Optional[str] = None
 
-        class filefeed:
-            bars_path: Optional[str] = None
-
-            limits_path: Optional[str] = None
-
     class redis:
         dsn: Optional[str] = None
 

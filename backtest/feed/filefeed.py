@@ -4,12 +4,16 @@ import os
 import pickle
 from typing import Dict, List, Tuple, Union
 
+import numpy as np
+from coretypes import Frame, FrameType
+
 from backtest.feed.basefeed import BaseFeed
 
 logger = logging.getLogger(__name__)
 
 
 class FileFeed(BaseFeed):
+    # todo: filefeed不适合用在生产环境，无法提供大范围的bars_for_match。本版不再考虑。
     def __init__(
         self,
         bars_for_match_path: str,
@@ -99,3 +103,14 @@ class FileFeed(BaseFeed):
             assert isinstance(date, datetime.date)
             bar = bars[bars["frame"] == date]
             return bar[0]
+
+    async def get_bars_in_range(
+        cls,
+        code: str,
+        frame_type: FrameType,
+        start: Frame,
+        end: Frame,
+        fq=True,
+        unclosed=True,
+    ) -> np.ndarray:
+        raise NotImplementedError

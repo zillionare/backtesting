@@ -37,6 +37,9 @@ server:
 feed:
   # either file or zillionare
   type: zillionare
+  # filefeed:
+  #   bars_path: bars_1m.pkl
+  #   limits_path: limits.pkl
 
 redis:
   dsn: redis://192.168.100.101:56379

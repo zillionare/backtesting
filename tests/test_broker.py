@@ -1,19 +1,18 @@
 import datetime
-import os
 import unittest
 
 import cfg4py
 import numpy as np
 import omicron
 from omicron.models.timeframe import TimeFrame as tf
-from sanic import Sanic
 
 from backtest.common.helper import get_app_context
 from backtest.config import get_config_dir
+from backtest.feed.zillionarefeed import ZillionareFeed
 from backtest.trade.broker import Broker
 from backtest.trade.trade import Trade
 from backtest.trade.types import EntrustError, EntrustSide, position_dtype
-from tests import assert_deep_almost_equal, create_file_feed
+from tests import assert_deep_almost_equal, data_populate
 
 
 class BrokerTest(unittest.IsolatedAsyncioTestCase):
@@ -26,10 +25,16 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             tf.service_degrade()
 
         self.ctx = get_app_context()
-        self.ctx.feed = create_file_feed()
+        self.ctx.feed = ZillionareFeed()
         await self.ctx.feed.init()
 
+        await data_populate()
+
         return await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        return await super().asyncTearDown()
 
     def _check_position(self, broker, actual, bid_time):
         exp = broker.get_position(bid_time)
@@ -58,7 +63,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             sum_shares = np.sum([v.shares for v in actual["data"]])
             self.assertEqual(sum_shares, shares)
             sum_fee = np.sum([v.fee for v in actual["data"]])
-            self.assertEqual(sum_fee, price * shares * commission)
+            self.assertAlmostEqual(sum_fee, price * shares * commission, 2)
         else:
             self.assertAlmostEqual(actual["data"].price, price, 2)
 
@@ -66,8 +71,6 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(actual["data"].fee, price * shares * commission, 2)
 
     async def test_buy(self):
-        global bars
-
         tyst = "603717.XSHG"
         hljh, capital, commission = "002537.XSHE", 1e10, 1e-4
         broker = Broker("test", capital, commission)
@@ -80,7 +83,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             datetime.datetime(2022, 3, 10, 9, 35),
         )
 
-        price1, shares1, close_price_of_the_day = 9.324918623206482, 29265100.0, 9.68
+        price1, shares1, close_price_of_the_day = 9.324918712004743, 29265100.0, 9.68
         self._check_order_result(
             result, EntrustError.PARTIAL_SUCCESS, hljh, price1, shares1, commission
         )
@@ -119,8 +122,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         cash = start_cash - price2 * shares2 * (1 + commission)
         assets = cash + shares * close_price_of_the_day
 
-        self.assertAlmostEqual(assets, broker.assets, 2)
-        self.assertAlmostEqual(cash, broker.cash, 2)
+        self.assertAlmostEqual(assets, broker.assets, 1)
+        self.assertAlmostEqual(cash, broker.cash, 1)
         self._check_position(broker, positions, datetime.datetime(2022, 3, 10, 9, 35))
 
         # 进入到下一个交易日，此时position中应该有可以卖出的股票
@@ -137,8 +140,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
         await broker.buy(tyst, 11.2, 5e4, bid_time)
 
-        self.assertAlmostEqual(assets, broker.assets, 2)
-        self.assertAlmostEqual(cash, broker.cash, 2)
+        self.assertAlmostEqual(assets, broker.assets, 1)
+        self.assertAlmostEqual(cash, broker.cash, 1)
         self._check_position(broker, positions, bid_time)
 
         # 买入时已经涨停
@@ -282,7 +285,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(EntrustError.SUCCESS, result["status"])
         self.assertEqual(0, len(broker.position))
-        self.assertAlmostEqual(9_998_678_423.29, broker.assets, 2)
+        self.assertAlmostEqual(9998678423.08407, broker.assets, 2)
         self.assertAlmostEqual(broker.cash, broker.assets, 2)
 
     async def test_info(self):
@@ -429,7 +432,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "end": datetime.datetime(2022, 3, 14, 15, 0),
             "window": 10,
             "total_tx": 9,
-            "total_profit": -779.1590000001015,
+            "total_profit": -779.1568067073822,
             "total_profit_rate": -0.0007791590000001016,
             "win_rate": 0.4444444444444444,
             "mean_return": -0.00010547676230510117,

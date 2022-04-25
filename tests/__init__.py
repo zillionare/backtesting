@@ -1,6 +1,7 @@
 """Unit test package for backtest."""
 import logging
 import os
+import pickle
 import socket
 import uuid
 from contextlib import closing
@@ -9,9 +10,11 @@ from typing import Union
 import arrow
 import cfg4py
 import numpy as np
+import pandas as pd
 from coretypes import FrameType, bars_dtype
+from omicron.dal.influx.influxclient import InfluxClient
+from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame
-from sanic import Sanic
 
 from backtest.app import application as app
 from backtest.config import get_config_dir
@@ -25,10 +28,6 @@ logger = logging.getLogger(__name__)
 
 def init_interface_test():
     cfg = cfg4py.init(get_config_dir())
-
-    cfg.feed.type = "file"
-    cfg.feed.filefeed.bars_path = os.path.join(data_dir(), "bars_1m.pkl")
-    cfg.feed.filefeed.limits_path = os.path.join(data_dir(), "limits.pkl")
 
     path = cfg.server.path.rstrip("/")
     bp.url_prefix = path
@@ -204,3 +203,31 @@ def assert_deep_almost_equal(test_case, expected, actual, *args, **kwargs):
             trace = " -> ".join(reversed(exc.traces))
             exc = AssertionError("%s\nTRACE: %s" % (exc, trace))
         raise exc
+
+
+async def data_populate():
+    cfg = cfg4py.init(get_config_dir())
+    url, token, bucket, org = (
+        cfg.influxdb.url,
+        cfg.influxdb.token,
+        cfg.influxdb.bucket_name,
+        cfg.influxdb.org,
+    )
+    client = InfluxClient(url, token, bucket, org)
+
+    # fill in influxdb
+    await client.drop_measurement("stock_bars_1d")
+    await client.drop_measurement("stock_bars_1m")
+
+    for ft in (FrameType.MIN1, FrameType.DAY):
+        file = os.path.join(data_dir(), f"bars_{ft.value}.pkl")
+        with open(file, "rb") as f:
+            bars = pickle.load(f)
+            await Stock.persist_bars(ft, bars)
+
+    df = pd.read_csv(
+        os.path.join(data_dir(), "limits.csv"), sep="\t", parse_dates=["time"]
+    )
+    limits = df.to_records(index=False)
+    limits.dtype.names = ["frame", "code", "high_limit", "low_limit"]
+    await Stock.save_trade_price_limits(limits, False)

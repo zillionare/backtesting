@@ -4,7 +4,13 @@ import uuid
 
 from backtest.app import application_init
 from backtest.common.helper import jsonify
-from tests import assert_deep_almost_equal, get, init_interface_test, post
+from tests import (
+    assert_deep_almost_equal,
+    data_populate,
+    get,
+    init_interface_test,
+    post,
+)
 
 app = init_interface_test()
 
@@ -16,6 +22,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         commission = 1e-4
         self.token = uuid.uuid4().hex
 
+        await data_populate()
         await application_init(app)
 
         response = await post(
@@ -265,7 +272,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "end": datetime.datetime(2022, 3, 14, 15, 0),
             "window": 10,
             "total_tx": 9,
-            "total_profit": -779.1590000001015,
+            "total_profit": -779.1568067073822,
             "total_profit_rate": -0.0007791590000001016,
             "win_rate": 0.4444444444444444,
             "mean_return": -0.00010547676230510117,
@@ -287,4 +294,4 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        assert_deep_almost_equal(self, actual, jsonify(exp), places=2)
+        assert_deep_almost_equal(self, jsonify(exp), actual, places=2)
