@@ -66,13 +66,10 @@ async def buy(request):
 
     Args:
         request : 参数以json方式传入， 包含：
-        security : 证券代码
-        price: 买入价格,如果为None，则意味着以市价买入
-        volume: 买入数量
-        order_time: 下单时间
-
-    Returns:
-        _description_
+            - security : 证券代码
+            - price: 买入价格,如果为None，则意味着以市价买入
+            - volume: 买入数量
+            - order_time: 下单时间
     """
     params = request.json or {}
 
