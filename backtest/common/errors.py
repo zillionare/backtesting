@@ -35,7 +35,7 @@ class NoDataForMatchError(Error):
     pass
 
 
-class AccountConflictError(Error):
-    """账户冲突"""
+class AccountError(Error):
+    """账户冲突，或者已冻结"""
 
     pass

@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-backtest"
-version = "0.2.2"
+version = "0.2.3"
 homepage = "https://github.com/zillionare/backtest"
 description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
@@ -20,10 +20,10 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4"
+python = ">=3.8,<3.9"
 fire = "0.4.0"
 
-black  = {version = "^22.3.0", extras = ["test"]}
+black  = {version = "^22.3.0", optional = true}
 isort  = { version = "5.6.4", optional = true}
 flake8  = { version = "3.8.4", optional = true}
 flake8-docstrings = { version = "^1.6.0", optional = true }
@@ -41,7 +41,6 @@ twine  = { version = "^3.8.0", optional = true}
 mkdocs-autorefs = {version = "^0.3.1", optional = true}
 pre-commit = {version = "^2.17.0", optional = true}
 toml = {version = "^0.10.2", optional = true}
-livereload = {version = "^2.6.3", optional = true}
 sanic = "^21.12.1"
 cfg4py = "^0.9.2"
 expiringdict = "^1.2.1"
@@ -55,11 +54,11 @@ psutil = "^5.9.0"
 tqdm = "^4.63.0"
 requests = "^2.27.1"
 pandas = "^1.4.1"
-pytest-asyncio = {version = "^0.18.2", extras = ["test"]}
-sanic-testing = {version = "^0.8.2", extras = ["test"]}
-Jinja2 = {version = "~3.0", extras = ["doc"]}
+sanic-testing = {version = "^0.8.2", optional = true}
+Jinja2 = {version = "~3.0", optional = true}
 Cython = "^0.29.28"
 zillionare-omicron = {version = "^2.0.0a27", allow-prereleases = true}
+livereload = { version = "^2.6.3", optional = true}
 
 [tool.poetry.extras]
 test = [
@@ -68,11 +67,10 @@ test = [
     "flake8",
     "flake8-docstrings",
     "pytest-cov",
-    "pytest-asyncio",
     "sanic-testing"
     ]
 
-dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml"]
+dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "black"]
 
 doc = [
     "mkdocs",
@@ -81,7 +79,8 @@ doc = [
     "mkdocstrings",
     "mkdocs-material-extension",
     "mkdocs-autorefs",
-    "Jinja2"
+    "Jinja2",
+    "livereload"
     ]
 
 [tool.poetry.scripts]
@@ -106,5 +105,6 @@ exclude = '''
   | buck-out
   | build
   | dist
+  | .history
 )/
 '''

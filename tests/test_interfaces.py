@@ -2,11 +2,14 @@ import datetime
 import unittest
 import uuid
 
+import cfg4py
+
 from backtest.app import application_init
 from backtest.common.helper import jsonify
 from tests import (
     assert_deep_almost_equal,
     data_populate,
+    delete,
     get,
     init_interface_test,
     post,
@@ -22,12 +25,16 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         commission = 1e-4
         self.token = uuid.uuid4().hex
 
+        cfg = cfg4py.get_instance()
+        self.admin_token = cfg.auth.admin
+
         await data_populate()
         await application_init(app)
 
+        await delete("accounts", self.admin_token)
         response = await post(
             "accounts",
-            self.token,
+            self.admin_token,
             data={
                 "name": name,
                 "capital": capital,
@@ -42,7 +49,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         return await super().asyncSetUp()
 
     async def test_list_accounts(self):
-        response = await get("accounts", self.token)
+        response = await get("accounts", self.admin_token)
         self.assertEqual(response["status"], 0)
         self.assertEqual(response["data"][0]["account_name"], "test")
 
@@ -295,3 +302,28 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         }
 
         assert_deep_almost_equal(self, jsonify(exp), actual, places=2)
+
+    async def test_start_backtest(self):
+        "test start_backtest"
+        await post(
+            "start_backtest",
+            "",
+            {
+                "name": "test_start_backtest",
+                "version": 0.1,
+                "start": "2022-03-01",
+                "end": "2022-03-14",
+                "capital": 1_000_000,
+                "commission": 1e-4,
+            },
+        )
+
+        accounts = await get("accounts", self.admin_token)
+        print(accounts)
+
+    async def test_protect_admin(self):
+        """valid admin token is tested through other tests"""
+        response = await post(
+            "accounts", "invalid_token", {"username": "test", "password": "test"}
+        )
+        self.assertEqual(response["msg"], "token is invalid")

@@ -1,18 +1,25 @@
+import datetime
 import logging
 import os
 import pickle
 
-from backtest.common.errors import AccountConflictError
+import cfg4py
+
+from backtest.common.errors import AccountError
 from backtest.config import home_dir
 from backtest.trade.broker import Broker
 
 logger = logging.getLogger(__name__)
+cfg = cfg4py.get_instance()
 
 
 class Accounts:
     _brokers = {}
 
     def on_startup(self):
+        token = cfg.auth.admin
+        self._brokers[token] = Broker("admin", 0, 0.0)
+
         state_file = os.path.join(home_dir(), "state.pkl")
         try:
             with open(state_file, "rb") as f:
@@ -33,45 +40,67 @@ class Accounts:
     def is_valid(self, token: str):
         return token in self._brokers
 
-    def create_account(self, token: str, name: str, capital: float, commission: float):
+    def is_admin(self, token: str):
+        cfg = cfg4py.get_instance()
+        return token == cfg.auth.admin
+
+    def create_account(
+        self,
+        name: str,
+        token: str,
+        capital: float,
+        commission: float,
+        start: datetime.date = None,
+        end: datetime.date = None,
+    ):
         """创建新账户
 
-        为防止意外使用了他人的token，此方法会检查token,name对是否存在且相同。如果token存在，name不同，则认为是意外使用了他人的token，抛出AccountConflictError异常。
-
-        如果之前token,name对已经存在，则调用此方法时会重置账户。
+        Args:
+            name (str): 账户/策略名称
+            token (str): 账户token
+            capital (float): 账户起始资金
+            commission (float): 账户手续费
+            start (datetime.date, optional): 回测开始日期，如果是模拟盘，则可为空
+            end (datetime.date, optional): 回测结束日期，如果是模拟盘，则可为空
         """
         if token in self._brokers:
-            broker = self._brokers[token]
-            if broker.account_name != name:
-                msg = f"{token[-4:]}已被{broker.name}账户使用，不能创建{name}账户"
+            msg = f"账户{name}:{token}已经存在，不能重复创建。"
+            raise AccountError(msg)
 
-                raise AccountConflictError(msg)
-            else:
-                return {
-                    "account_name": broker.account_name,
-                    "token": token,
-                    "account_start_date": broker.account_start_date,
-                    "cash": broker.cash,
-                }
-
-        broker = Broker(name, capital, commission)
+        broker = Broker(name, capital, commission, start, end)
         self._brokers[token] = broker
 
-        logger.info("新建账户， token:%s, %s", token, broker)
+        logger.info("新建账户:%s, %s", name, token)
         return {
             "account_name": name,
             "token": token,
             "account_start_date": broker.account_start_date,
-            "cash": broker.cash,
+            "capital": broker.capital,
         }
 
-    def list_accounts(self):
+    def list_accounts(self, mode: str):
+        if mode != "all":
+            filtered = {
+                token: broker
+                for token, broker in self._brokers.items()
+                if broker.mode == mode and broker.account_name != "admin"
+            }
+        else:
+            filtered = {
+                token: broker
+                for token, broker in self._brokers.items()
+                if broker.account_name != "admin"
+            }
+
         return [
             {
                 "account_name": broker.account_name,
                 "token": token,
                 "account_start_date": broker.account_start_date,
-                "cash": broker.cash,
+                "capital": broker.capital,
             }
-            for token, broker in self._brokers.items()
+            for token, broker in filtered.items()
         ]
+
+    def delete_accounts(self):
+        self._brokers = {}

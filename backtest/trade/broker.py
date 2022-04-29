@@ -18,7 +18,7 @@ from omicron import array_price_equal, math_round, price_equal
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
-from backtest.common.errors import BadParameterError, NoDataForMatchError
+from backtest.common.errors import AccountError, BadParameterError, NoDataForMatchError
 from backtest.common.helper import get_app_context, make_response
 from backtest.trade.trade import Trade
 from backtest.trade.types import (
@@ -34,14 +34,33 @@ logger = logging.getLogger(__name__)
 
 
 class Broker:
-    def __init__(self, account_name: str, capital: float, commission: float):
+    def __init__(
+        self,
+        account_name: str,
+        capital: float,
+        commission: float,
+        start: datetime.date = None,
+        end: datetime.date = None,
+    ):
         """_summary_
 
         Args:
             account_name : 账号/策略名
             capital : 初始本金
             commission : 佣金率
+            start : 开始日期(回测时使用)
+            end : 结束日期（回测时使用）
         """
+        if start is not None and end is not None:
+            self.mode = "bt"
+            self._first_trade_date = start
+            self._last_trade_date = end
+            self._stopped = False
+        else:
+            self.mode = "mock"
+            self._stopped = False
+            self._last_trade_date = None
+            self._first_trade_date = None
 
         self.account_name = account_name
         self.commission = commission
@@ -61,9 +80,6 @@ class Broker:
 
         # trasaction = buy + sell trade
         self.transactions = []
-
-        self._last_trade_date = None
-        self._first_trade_date = None
 
     @property
     def account_start_date(self) -> datetime.date:
@@ -283,6 +299,15 @@ class Broker:
                 }
             }
         """
+        if self._stopped:
+            logger.warning("尝试在已冻结账户上进行委买")
+            raise AccountError("账户已冻结")
+
+        if self.mode == "bt" and bid_time.date() > self._last_trade_date:
+            self._stopped = True
+            logger.warning("委买时间超过回测结束时间: %s, %s", bid_time, self._last_trade_date)
+            raise AccountError(f"委买时间超过回测结束时间，{bid_time} > {self._last_trade_date}")
+
         feed = get_app_context().feed
 
         en = Entrust(
@@ -642,6 +667,15 @@ class Broker:
                 }
             }
         """
+        if self._stopped:
+            logger.warning("尝试在已冻结账户上进行委买")
+            raise AccountError("账户已冻结")
+
+        if self.mode == "bt" and bid_time.date() > self._last_trade_date:
+            self._stopped = True
+            logger.warning("委卖时间超过回测结束时间: %s, %s", bid_time, self._last_trade_date)
+            raise AccountError(f"委卖时间超过回测结束时间，{bid_time} > {self._last_trade_date}")
+
         feed = get_app_context().feed
 
         logger.info("卖出委托(%s): %s %s %s", bid_time, security, bid_price, bid_shares)
@@ -777,6 +811,10 @@ class Broker:
             raise BadParameterError(f"{bid_time} not in bars for matching")
 
         return price_equal(cur_bar["close"], limit_price)
+
+    def freeze(self):
+        """冻结账户，停止接收新的委托"""
+        self._stopped = True
 
     async def metrics(
         self,

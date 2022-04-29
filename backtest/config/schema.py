@@ -30,6 +30,9 @@ class Config(object):
     class server:
         path: Optional[str] = None
 
+    class auth:
+        admin: Optional[str] = None
+
     class feed:
         type: Optional[str] = None
 

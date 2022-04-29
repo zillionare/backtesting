@@ -4,6 +4,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Union
 
+import cfg4py
 from expiringdict import ExpiringDict
 from sanic import Sanic, response
 
@@ -30,6 +31,20 @@ def check_token(request):
         return False
 
 
+def check_admin_token(request):
+    if not request.token:
+        return False
+
+    app = Sanic.get_app("backtest")
+
+    if app.ctx.accounts.is_admin(request.token):
+        cfg = cfg4py.get_instance()
+        request.ctx.broker = app.ctx.accounts.get_broker(cfg.auth.admin)
+        return True
+    else:
+        return False
+
+
 def check_duplicated_request(request):
     request_id = request.headers.get("Request-ID")
     if request_id in seen_requests:
@@ -47,6 +62,42 @@ def protected(wrapped):
         @wraps(f)
         async def decorated_function(request, *args, **kwargs):
             is_authenticated = check_token(request)
+            is_duplicated = check_duplicated_request(request)
+
+            if is_authenticated and not is_duplicated:
+                try:
+                    result = await f(request, *args, **kwargs)
+                    return result
+                except Exception as e:
+                    logger.exception(e)
+                    return response.text(str(e), status=500)
+            elif not is_authenticated:
+                return response.json(
+                    {
+                        "msg": "token is invalid",
+                    },
+                    401,
+                )
+            elif is_duplicated:
+                return response.json(
+                    {
+                        "msg": "duplicated request",
+                    },
+                    200,
+                )
+
+        return decorated_function
+
+    return decorator(wrapped)
+
+
+def protected_admin(wrapped):
+    """check token and duplicated request"""
+
+    def decorator(f):
+        @wraps(f)
+        async def decorated_function(request, *args, **kwargs):
+            is_authenticated = check_admin_token(request)
             is_duplicated = check_duplicated_request(request)
 
             if is_authenticated and not is_duplicated:

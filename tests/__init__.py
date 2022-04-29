@@ -43,6 +43,21 @@ def find_free_port():
         return s.getsockname()[1]
 
 
+async def delete(cmd: str, token: str, params=None):
+    url = f"/backtest/api/trade/v0.2/{cmd}"
+
+    headers = {
+        "Authorization": f"Token {token}",
+        "Request-ID": uuid.uuid4().hex,
+    }
+    try:
+        _, response = await app.asgi_client.delete(url, params=params, headers=headers)
+        return response.json
+    except Exception as e:
+        logger.exception(e)
+        return None
+
+
 async def post(cmd: str, token: str, data):
     url = f"/backtest/api/trade/v0.2/{cmd}"
 

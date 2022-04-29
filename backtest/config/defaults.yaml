@@ -33,7 +33,8 @@ metrics:
   annual_days: 252
 server:
   path: /backtest/api/trade/v0.2/
-
+auth:
+  admin: bGZJGEZ
 feed:
   # either file or zillionare
   type: zillionare

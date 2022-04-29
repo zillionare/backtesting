@@ -6,8 +6,8 @@ from omicron import tf
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import AccountConflictError, GenericErrCode
-from backtest.common.helper import jsonify, make_response, protected
+from backtest.common.errors import AccountError, GenericErrCode
+from backtest.common.helper import jsonify, make_response, protected, protected_admin
 from backtest.trade.broker import Broker
 
 bp = Blueprint("backtest")
@@ -20,13 +20,15 @@ async def status(request):
 
 
 @bp.route("accounts", methods=["POST"])
+@protected_admin
 async def create_account(request):
+    """创建一个模拟盘账户"""
     params = request.json or {}
 
     name = params["name"]
-    capital = params["capital"]
     token = params["token"]
     commission = params["commission"]
+    capital = params["capital"]
 
     if any([name is None, capital is None, token is None, commission is None]):
         msg = f"必须传入name: {name}, capital: {capital}, token: {token}, commission: {commission}"
@@ -36,21 +38,48 @@ async def create_account(request):
     accounts = request.app.ctx.accounts
 
     try:
-        result = accounts.create_account(token, name, capital, commission)
+        result = accounts.create_account(name, token, capital, commission)
         start = result["account_start_date"]
         if start is not None:
             result["account_start_date"] = arrow.get(start).format("YYYY-MM-DD")
-    except AccountConflictError as e:
+    except AccountError as e:
         return response.text(e.message, status=400)
 
     return response.json(make_response(GenericErrCode.OK, data=result))
 
 
+@bp.route("start_backtest", methods=["POST"])
+async def start_backtest(request):
+    params = request.json or {}
+
+    try:
+        name = params["name"]
+        token = params["token"]
+        start = arrow.get(params["start"]).date()
+        end = arrow.get(params["end"]).date()
+        capital = params["capital"]
+        commission = params["commission"]
+    except Exception:
+        return response.text("Bad parameter: name, version, start, end", status=400)
+
+    accounts = request.app.ctx.accounts
+    try:
+        result = accounts.create_account(
+            name, token, capital, commission, start=start, end=end
+        )
+        return response.json(make_response(GenericErrCode.OK, data=result))
+    except AccountError as e:
+        return response.text(e.message, status=400)
+
+
 @bp.route("accounts", methods=["GET"])
+@protected_admin
 async def list_accounts(request):
+    mode = request.args.get("mode", "all")
+
     accounts = request.app.ctx.accounts
 
-    result = accounts.list_accounts()
+    result = accounts.list_accounts(mode)
     for account in result:
         date = account["account_start_date"]
         if date is not None:
@@ -280,3 +309,12 @@ async def bills(request):
             results["assets"].append({date: assest})
 
     return response.json(make_response(GenericErrCode.OK, data=jsonify(results)))
+
+
+@bp.route("accounts", methods=["DELETE"])
+@protected_admin
+async def delete_accounts(request):
+    accounts = request.app.ctx.accounts
+
+    accounts.delete_accounts()
+    return response.json(make_response(GenericErrCode.OK))
