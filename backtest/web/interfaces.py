@@ -296,7 +296,7 @@ async def bills(request):
     results["assets"] = []
 
     for dt in tf.get_frames(
-        broker.account_start_date, broker.last_trade_date, FrameType.DAY
+        broker.account_start_date, broker.account_end_date, FrameType.DAY
     ):
         date = tf.int2date(dt)
 

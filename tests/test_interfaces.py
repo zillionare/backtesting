@@ -345,3 +345,25 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "accounts", "invalid_token", {"username": "test", "password": "test"}
         )
         self.assertEqual(response["msg"], "token is invalid")
+
+    async def test_bills(self):
+        await delete("accounts", self.admin_token)
+
+        _ = await post(
+            "start_backtest",
+            self.admin_token,
+            data={
+                "name": "test_bill",
+                "capital": 1_000_000,
+                "commission": 1e-4,
+                "token": self.token,
+                "start": "2022-03-01",
+                "end": "2022-03-14",
+            },
+        )
+
+        r = ((await get("bills", self.token)) or {}).get("data")
+        self.assertIn("tx", r)
+        self.assertIn("trades", r)
+        self.assertIn("positions", r)
+        self.assertIn("assets", r)
