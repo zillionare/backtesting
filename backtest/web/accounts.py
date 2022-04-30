@@ -67,6 +67,11 @@ class Accounts:
             msg = f"账户{name}:{token}已经存在，不能重复创建。"
             raise AccountError(msg)
 
+        for broker in self._brokers.values():
+            if broker.account_name == name:
+                msg = f"账户{name}:{token}已经存在，不能重复创建。"
+                raise AccountError(msg)
+
         broker = Broker(name, capital, commission, start, end)
         self._brokers[token] = broker
 
@@ -102,5 +107,17 @@ class Accounts:
             for token, broker in filtered.items()
         ]
 
-    def delete_accounts(self):
-        self._brokers = {}
+    def delete_accounts(self, account_to_delete: str = None):
+        if account_to_delete is None:
+            self._brokers = {}
+            return 0
+        else:
+            for token, broker in self._brokers.items():
+                if broker.account_name == account_to_delete:
+                    del self._brokers[token]
+                    logger.info("账户:%s已删除", account_to_delete)
+
+                    return len(self._brokers)
+            else:
+                logger.warning("账户%s不存在", account_to_delete)
+                return len(self._brokers)

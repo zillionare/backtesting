@@ -32,6 +32,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await application_init(app)
 
         await delete("accounts", self.admin_token)
+
         response = await post(
             "accounts",
             self.admin_token,
@@ -48,10 +49,27 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         return await super().asyncSetUp()
 
-    async def test_list_accounts(self):
+    async def test_accounts(self):
+        """create, list and delete accounts"""
+
+        await post(
+            "accounts",
+            self.admin_token,
+            data={
+                "name": "test2",
+                "capital": 1_000_000,
+                "commission": 1e-4,
+                "token": uuid.uuid4().hex,
+            },
+        )
+
         response = await get("accounts", self.admin_token)
+        self.assertEqual(2, len(response["data"]))
         self.assertEqual(response["status"], 0)
         self.assertEqual(response["data"][0]["account_name"], "test")
+
+        res = await delete("accounts", self.admin_token, params={"name": "test2"})
+        self.assertEqual(res["data"], 1)
 
     async def test_status(self):
         response = await get("status", self.token)

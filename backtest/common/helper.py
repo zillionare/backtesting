@@ -48,6 +48,7 @@ def check_admin_token(request):
 def check_duplicated_request(request):
     request_id = request.headers.get("Request-ID")
     if request_id in seen_requests:
+        logger.info("duplicated request: [%s]", request_id)
         return True
 
     seen_requests[request_id] = True
@@ -72,6 +73,7 @@ def protected(wrapped):
                     logger.exception(e)
                     return response.text(str(e), status=500)
             elif not is_authenticated:
+                logger.warning("token is invalid: [%s]", request.token)
                 return response.json(
                     {
                         "msg": "token is invalid",
@@ -108,6 +110,7 @@ def protected_admin(wrapped):
                     logger.exception(e)
                     return response.text(str(e), status=500)
             elif not is_authenticated:
+                logger.warning("admin token is invalid: [%s]", request.token)
                 return response.json(
                     {
                         "msg": "token is invalid",

@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class Broker:
+    # fixme: 每日资产不能简单地复制上一日的资产，因为在有持仓的情况下，只要有交易，市值都会变化。只有可用资金能复制上一日。因此，需要在更新_last_trade_day时，更新未填充日期的资产。
     def __init__(
         self,
         account_name: str,
@@ -164,22 +165,22 @@ class Broker:
             "returns": self.get_returns().tolist(),
         }
 
-    def get_returns(self, date: datetime.date = None) -> List[float]:
-        """求截止`date`时的每日回报
+    def get_returns(self, end_date: datetime.date = None) -> List[float]:
+        """求截止`end_date`时的每日回报
 
         Args:
-            date : _description_.
+            end_date : _description_.
 
         Returns:
             _description_
         """
-        dtype = [("date", "O"), ("assets", "f4")]
+        dtype = [("date", "O"), ("assets", "f8")]
         assets = np.array(
             [(d, self._assets[d]) for d in sorted(self._assets.keys())], dtype=dtype
         )
 
-        if date is not None:
-            assets = assets[assets["date"] <= date]
+        if end_date is not None:
+            assets = assets[assets["date"] <= end_date]
 
         returns = [self.capital] + assets["assets"]
 

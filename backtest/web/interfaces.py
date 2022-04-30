@@ -314,7 +314,8 @@ async def bills(request):
 @bp.route("accounts", methods=["DELETE"])
 @protected_admin
 async def delete_accounts(request):
+    account_to_delete = request.args.get("name", None)
     accounts = request.app.ctx.accounts
 
-    accounts.delete_accounts()
-    return response.json(make_response(GenericErrCode.OK))
+    n_accounts = accounts.delete_accounts(account_to_delete)
+    return response.json(make_response(GenericErrCode.OK, data=n_accounts))
