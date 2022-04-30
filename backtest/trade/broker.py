@@ -54,14 +54,17 @@ class Broker:
         """
         if start is not None and end is not None:
             self.mode = "bt"
-            self._first_trade_date = start
-            self._last_trade_date = end
+            self.account_start = start
+            self.account_stop = end
             self._stopped = False
         else:
             self.mode = "mock"
             self._stopped = False
-            self._last_trade_date = None
-            self._first_trade_date = None
+            self.account_start = None
+            self.account_stop = None
+
+        self._last_trade_date = None
+        self._first_trade_date = None
 
         self.account_name = account_name
         self.commission = commission
@@ -84,11 +87,19 @@ class Broker:
 
     @property
     def account_start_date(self) -> datetime.date:
-        return self._first_trade_date
+        return self.account_start or self._first_trade_date
+
+    @property
+    def account_end_date(self) -> datetime.date:
+        return self.account_stop or self._last_trade_date
 
     @property
     def last_trade_date(self):
         return self._last_trade_date
+
+    @property
+    def first_trade_date(self):
+        return self._first_trade_date
 
     def get_unclosed_trades(self, dt: datetime.date) -> set:
         """获取`dt`当天未平仓的交易
@@ -120,10 +131,12 @@ class Broker:
         if len(self._positions) == 0:
             return np.array([], dtype=position_dtype)
 
+        days = np.array(sorted(list(self._positions.keys())))
+        if dt is None:
+            return self._positions[days[-1]]
+
         if type(dt) == datetime.datetime:
             dt = dt.date()
-
-        days = np.array(sorted(list(self._positions.keys())))
 
         pos = np.argwhere(days <= dt)
         if len(pos) == 0:
@@ -195,7 +208,7 @@ class Broker:
         if self.last_trade_date is None:
             return self.capital
 
-        return self.get_assets(self.last_trade_date)
+        return self.get_assets(None)
 
     def get_assets(self, date: datetime.date) -> float:
         """计算某日的总资产
@@ -212,10 +225,12 @@ class Broker:
         if len(self._assets) == 0:
             return self.capital
 
+        days = np.array(sorted(list(self._assets.keys())))
+        if date is None:
+            return self._assets[days[-1]]
+
         if type(date) == datetime.datetime:
             date = date.date()
-
-        days = np.array(sorted(list(self._assets.keys())))
 
         pos = np.argwhere(days <= date)
         if len(pos) == 0:  # 时间在所有的交易日之前，因此返回本金
@@ -236,7 +251,7 @@ class Broker:
         if self.last_trade_date is None:
             return np.array([], dtype=position_dtype)
 
-        return self.get_position(self.last_trade_date)
+        return self.get_position(None)
 
     def __str__(self):
         s = (
@@ -258,18 +273,27 @@ class Broker:
         Args:
             bid_time : _description_
         """
-        if bid_time.__class__.__name__ == "datetime":
-            bid_time = bid_time
+        if type(bid_time) == datetime.datetime:
+            bid_time = bid_time.date()
 
         if self._first_trade_date is None:
             self._first_trade_date = bid_time
-        else:
-            self._first_trade_date = min(self._first_trade_date, bid_time)
+        elif bid_time < self._first_trade_date:
+            logger.warning("委托日期必须递增出现: %s -> %s", self._first_trade_date, bid_time)
+            raise ValueError(f"委托日期必须递增出现, {bid_time} -> {self._first_trade_date}")
 
-        if self._last_trade_date is None:
+        if self._last_trade_date is None or bid_time >= self._last_trade_date:
             self._last_trade_date = bid_time
         else:
-            self._last_trade_date = max(self._last_trade_date, bid_time)
+            logger.warning("委托日期必须递增出现：%s -> %s", self._last_trade_date, bid_time)
+            raise ValueError(
+                f"委托日期必须递增出现, {self._last_trade_date} -> {self._last_trade_date}"
+            )
+
+        if self.mode == "bt" and bid_time > self.account_stop:
+            self._stopped = True
+            logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.account_stop)
+            raise AccountError(f"委托时间超过回测结束时间，{self.account_stop} -> {bid_time}")
 
     async def buy(
         self,
@@ -300,14 +324,7 @@ class Broker:
                 }
             }
         """
-        if self._stopped:
-            logger.warning("尝试在已冻结账户上进行委买")
-            raise AccountError("账户已冻结")
-
-        if self.mode == "bt" and bid_time.date() > self._last_trade_date:
-            self._stopped = True
-            logger.warning("委买时间超过回测结束时间: %s, %s", bid_time, self._last_trade_date)
-            raise AccountError(f"委买时间超过回测结束时间，{bid_time} > {self._last_trade_date}")
+        self._update_trade_date(bid_time)
 
         feed = get_app_context().feed
 
@@ -328,8 +345,6 @@ class Broker:
             bid_price,
             en.eid,
         )
-
-        self._update_trade_date(bid_time)
 
         self.entrusts[en.eid] = en
 
@@ -668,14 +683,7 @@ class Broker:
                 }
             }
         """
-        if self._stopped:
-            logger.warning("尝试在已冻结账户上进行委买")
-            raise AccountError("账户已冻结")
-
-        if self.mode == "bt" and bid_time.date() > self._last_trade_date:
-            self._stopped = True
-            logger.warning("委卖时间超过回测结束时间: %s, %s", bid_time, self._last_trade_date)
-            raise AccountError(f"委卖时间超过回测结束时间，{bid_time} > {self._last_trade_date}")
+        self._update_trade_date(bid_time)
 
         feed = get_app_context().feed
 
@@ -683,8 +691,6 @@ class Broker:
         _, _, sell_limit_price = await feed.get_trade_price_limits(
             security, bid_time.date()
         )
-
-        self._update_trade_date(bid_time)
 
         if bid_price is None:
             bid_type = BidType.MARKET
@@ -865,7 +871,7 @@ class Broker:
 
         tx = []
         for t in self.transactions:
-            if t.entry_time >= start and t.exit_time <= end:
+            if t.entry_time.date() >= start and t.exit_time.date() <= end:
                 tx.append(t)
 
         # 资产暴露时间

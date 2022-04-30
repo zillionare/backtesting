@@ -293,8 +293,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         actual = (await get("metrics", self.token, baseline=hljh))["data"]
         exp = {
-            "start": datetime.datetime(2022, 3, 1, 9, 31),
-            "end": datetime.datetime(2022, 3, 14, 15, 0),
+            "start": datetime.date(2022, 3, 1),
+            "end": datetime.date(2022, 3, 14),
             "window": 10,
             "total_tx": 9,
             "total_profit": -779.1568067073822,

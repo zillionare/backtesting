@@ -67,7 +67,7 @@ async def start_backtest(request):
         result = accounts.create_account(
             name, token, capital, commission, start=start, end=end
         )
-        return response.json(make_response(GenericErrCode.OK, data=result))
+        return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
     except AccountError as e:
         return response.text(e.message, status=400)
 

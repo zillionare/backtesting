@@ -126,6 +126,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(cash, broker.cash, 1)
         self._check_position(broker, positions, datetime.datetime(2022, 3, 10, 9, 35))
 
+        # 买入时已经涨停
+        result = await broker.buy(
+            hljh, 9.68, 10e4, datetime.datetime(2022, 3, 10, 14, 33)
+        )
+
+        self.assertEqual(result["status"], EntrustError.REACH_BUY_LIMIT)
+
         # 进入到下一个交易日，此时position中应该有可以卖出的股票
         ## 买入价为11.3,全部成交
         bid_time = datetime.datetime(2022, 3, 11, 9, 35)
@@ -144,17 +151,10 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(cash, broker.cash, 1)
         self._check_position(broker, positions, bid_time)
 
-        # 买入时已经涨停
-        result = await broker.buy(
-            hljh, 9.68, 10e4, datetime.datetime(2022, 3, 10, 14, 33)
-        )
-
-        self.assertEqual(result["status"], EntrustError.REACH_BUY_LIMIT)
-
         # 资金不足,委托失败
         broker.cash = 100
         result = await broker.buy(
-            hljh, 9.43, 10e4, datetime.datetime(2022, 3, 10, 9, 35)
+            hljh, 10.20, 10e4, datetime.datetime(2022, 3, 11, 9, 35)
         )
 
         self.assertEqual(result["status"], EntrustError.NO_CASH)
@@ -198,6 +198,16 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         mar_9 = datetime.datetime(2022, 3, 9, 9, 40)
         mar10 = datetime.datetime(2022, 3, 10, 9, 33)
         await broker.buy(tyst, 14.84, 500, mar_7)
+
+        # 可用余额不足: 尝试卖出当天买入的部分
+        bid_price, bid_shares, bid_time = (
+            14.3,
+            400,
+            datetime.datetime(2022, 3, 7, 14, 26),
+        )
+        result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
+        self.assertEqual(EntrustError.NO_POSITION, result["status"])
+
         await broker.buy(tyst, 14.79, 1000, mar_8)
         await broker.buy(hljh, 8.95, 1000, mar_9)
         await broker.buy(hljh, 9.09, 1000, mar10)
@@ -237,15 +247,6 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self._check_position(broker, pos, mar10)
         self.assertAlmostEqual(999_073.47, broker.assets, 2)
         self.assertAlmostEqual(974_781.47, broker.cash, 2)
-
-        # 可用余额不足: 尝试卖出当天买入的部分
-        bid_price, bid_shares, bid_time = (
-            14.3,
-            400,
-            datetime.datetime(2022, 3, 7, 14, 26),
-        )
-        result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
-        self.assertEqual(EntrustError.NO_POSITION, result["status"])
 
         # 跌停板不能卖出
         bid_price, bid_shares, bid_time = (
@@ -428,8 +429,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         actual = await broker.metrics(baseline=hljh)
         exp = {
-            "start": datetime.datetime(2022, 3, 1, 9, 31),
-            "end": datetime.datetime(2022, 3, 14, 15, 0),
+            "start": datetime.date(2022, 3, 1),
+            "end": datetime.date(2022, 3, 14),
             "window": 10,
             "total_tx": 9,
             "total_profit": -779.1568067073822,
