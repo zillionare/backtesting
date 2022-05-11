@@ -5,8 +5,10 @@ from functools import wraps
 from typing import Any, Union
 
 import cfg4py
+import numpy as np
 from expiringdict import ExpiringDict
 from sanic import Sanic, response
+from tabulate import tabulate
 
 seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
 
@@ -74,19 +76,9 @@ def protected(wrapped):
                     return response.text(str(e), status=500)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
-                return response.json(
-                    {
-                        "msg": "token is invalid",
-                    },
-                    401,
-                )
+                return response.json({"msg": "token is invalid"}, 401)
             elif is_duplicated:
-                return response.json(
-                    {
-                        "msg": "duplicated request",
-                    },
-                    200,
-                )
+                return response.json({"msg": "duplicated request"}, 200)
 
         return decorated_function
 
@@ -111,19 +103,9 @@ def protected_admin(wrapped):
                     return response.text(str(e), status=500)
             elif not is_authenticated:
                 logger.warning("admin token is invalid: [%s]", request.token)
-                return response.json(
-                    {
-                        "msg": "token is invalid",
-                    },
-                    401,
-                )
+                return response.json({"msg": "token is invalid"}, 401)
             elif is_duplicated:
-                return response.json(
-                    {
-                        "msg": "duplicated request",
-                    },
-                    200,
-                )
+                return response.json({"msg": "duplicated request"}, 200)
 
         return decorated_function
 
@@ -166,3 +148,27 @@ def jsonify(obj) -> dict:
         return {k: jsonify(v) for k, v in obj.__dict__.items()}
     else:
         raise ValueError(f"{obj} is not jsonable")
+
+
+def tabulate_numpy_array(arr: np.ndarray) -> str:
+    """将numpy structured array 格式化为表格对齐的字符串
+
+    Args:
+        arr : _description_
+
+    Returns:
+        _description_
+    """
+    table = tabulate(arr, headers=arr.dtype.names, tablefmt="fancy_grid")
+    return table
+
+
+def tabulate_trades(trades: list) -> str:
+    """将交易记录格式化为表格对齐的字符串"""
+    headers = ("time", "symbol", "side", "price", "shares", "fee", "tid")
+
+    data = [
+        (t.time, t.security, t.side, t.price, t.shares, t.fee, t.tid[-6:])
+        for k, t in trades.items()
+    ]
+    return tabulate(data, headers=headers, tablefmt="fancy_grid")

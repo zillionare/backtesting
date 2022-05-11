@@ -1,13 +1,15 @@
 import datetime
+import logging
 from typing import Dict, List, Union
 
-import cfg4py
 import numpy as np
-import omicron
 from coretypes import FrameType
+from omicron import math_round
 from omicron.models.stock import Stock
 
 from backtest.feed.basefeed import BaseFeed
+
+logger = logging.getLogger(__name__)
 
 
 class ZillionareFeed(BaseFeed):
@@ -27,12 +29,20 @@ class ZillionareFeed(BaseFeed):
     ) -> Union[float, Dict[str, float]]:
         if isinstance(secs, str):
             secs = [secs]
+
+        if len(secs) == 0:
+            raise ValueError("No securities provided")
+
         bars = await Stock.batch_get_bars(secs, 1, FrameType.DAY, date)
 
-        if isinstance(secs, str):
-            return bars[secs]["close"][0]
-        else:
-            return {sec: bars[sec]["close"][0] for sec in secs}
+        try:
+            if isinstance(secs, str):
+                return bars[secs]["close"][0]
+            else:
+                return {sec: math_round(bars[sec]["close"][0], 2) for sec in secs}
+        except IndexError:
+            logger.warning("get_close_price failed for %s:%s", secs, date)
+            raise
 
     async def get_trade_price_limits(self, sec: str, date: datetime.date) -> np.ndarray:
         prices = await Stock.get_trade_price_limits(sec, date, date)

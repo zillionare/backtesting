@@ -46,10 +46,7 @@ def find_free_port():
 async def delete(cmd: str, token: str, params=None):
     url = f"/backtest/api/trade/v0.2/{cmd}"
 
-    headers = {
-        "Authorization": f"Token {token}",
-        "Request-ID": uuid.uuid4().hex,
-    }
+    headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     try:
         _, response = await app.asgi_client.delete(url, params=params, headers=headers)
         return response.json
@@ -61,10 +58,7 @@ async def delete(cmd: str, token: str, params=None):
 async def post(cmd: str, token: str, data):
     url = f"/backtest/api/trade/v0.2/{cmd}"
 
-    headers = {
-        "Authorization": f"Token {token}",
-        "Request-ID": uuid.uuid4().hex,
-    }
+    headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     try:
         _, response = await app.asgi_client.post(url, json=data, headers=headers)
         return response.json
@@ -76,10 +70,7 @@ async def post(cmd: str, token: str, data):
 async def get(cmd: str, token: str, **kwargs):
     url = f"/backtest/api/trade/v0.2/{cmd}"
 
-    headers = {
-        "Authorization": f"Token {token}",
-        "Request-ID": uuid.uuid4().hex,
-    }
+    headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     try:
         _, response = await app.asgi_client.get(url, headers=headers, params=kwargs)
         return response.json

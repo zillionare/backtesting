@@ -110,6 +110,7 @@ class Accounts:
     def delete_accounts(self, account_to_delete: str = None):
         if account_to_delete is None:
             self._brokers = {}
+            self._brokers[cfg.auth.admin] = Broker("admin", 0, 0.0)
             return 0
         else:
             for token, broker in self._brokers.items():
@@ -117,7 +118,7 @@ class Accounts:
                     del self._brokers[token]
                     logger.info("账户:%s已删除", account_to_delete)
 
-                    return len(self._brokers)
+                    return len(self._brokers) - 1
             else:
                 logger.warning("账户%s不存在", account_to_delete)
                 return len(self._brokers)

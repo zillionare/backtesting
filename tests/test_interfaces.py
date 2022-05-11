@@ -1,7 +1,9 @@
 import datetime
 import unittest
 import uuid
+from unittest import mock
 
+import arrow
 import cfg4py
 
 from backtest.app import application_init
@@ -207,7 +209,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
-    async def test_balance(self):
+    @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
+    async def test_balance(self, mock_now):
         "this also test info, available_money, available_shares, metrics, get_returns"
         balance = (await get("balance", self.token))["data"]
         self.assertEqual(balance["available"], 1_000_000)
@@ -236,8 +239,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         info = (await get("info", self.token))["data"]
         self.assertEqual(info["start"], "2022-03-01")
-        self.assertAlmostEqual(info["assets"], 1000039.5289618492, 2)
-        self.assertAlmostEqual(info["earnings"], 39.52896, 2)
+        self.assertAlmostEqual(info["assets"], 1000069.528, 2)
+        self.assertAlmostEqual(info["earnings"], 69.52896, 2)
 
         available_money = (await get("available_money", self.token))["data"]
         self.assertAlmostEqual(995289.5289, available_money, 2)
@@ -251,7 +254,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         returns = (await get("returns", self.token))["data"]
         print(returns)
 
-    async def test_metrics(self):
+    @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
+    async def test_metrics(self, mocked_now):
         hljh = "002537.XSHE"
 
         for price, volume, tm in [
@@ -298,15 +302,15 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "window": 10,
             "total_tx": 9,
             "total_profit": -779.1568067073822,
-            "total_profit_rate": -0.0007791590000001016,
+            "total_profit_rate": -0.0007791568067073822,
             "win_rate": 0.4444444444444444,
-            "mean_return": -0.00010547676230510117,
-            "sharpe": -1.8621486479452378,
-            "sortino": -2.709005647235303,
-            "calmar": -5.999762684818712,
-            "max_drawdown": -0.004438621651363204,
-            "annual_return": -0.026630676555877364,
-            "volatility": 0.03038433272409164,
+            "mean_return": -6.952228828114507e-05,
+            "sharpe": -1.7461,
+            "sortino": -2.51418,
+            "calmar": -3.9873290,
+            "max_drawdown": -0.004438,
+            "annual_return": -0.017698244,
+            "volatility": 0.02721410,
             "baseline": {
                 "code": hljh,
                 "win_rate": 0.5555555555555556,

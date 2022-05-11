@@ -2,6 +2,8 @@ import datetime
 import uuid
 from enum import IntEnum
 
+import numpy as np
+
 
 class EntrustSide(IntEnum):
     BUY = 1
@@ -16,10 +18,7 @@ class BidType(IntEnum):
     MARKET = 2
 
     def __str__(self):
-        return {
-            BidType.LIMIT: "限价委托",
-            BidType.MARKET: "市价委托",
-        }.get(self)
+        return {BidType.LIMIT: "限价委托", BidType.MARKET: "市价委托"}.get(self)
 
 
 class Entrust:
@@ -75,9 +74,29 @@ class EntrustError(IntEnum):
         }.get(self)
 
 
-position_dtype = [
-    ("security", "O"),
-    ("shares", "<f8"),
-    ("sellable", "<f8"),
-    ("price", "<f8"),
-]
+cash_dtype = np.dtype([("date", "O"), ("cash", "<f8")])
+
+daily_position_dtype = np.dtype(
+    [
+        ("date", "O"),
+        ("security", "O"),
+        ("shares", "<f8"),
+        ("sellable", "<f8"),
+        ("price", "<f8"),
+    ]
+)
+
+# for return to client
+position_dtype = np.dtype(
+    [
+        ("security", "O"),
+        ("shares", "<f8"),
+        ("sellable", "<f8"),
+        ("price", "<f8"),
+    ]
+)
+
+
+assets_dtype = np.dtype([("date", "O"), ("assets", "<f8")])
+
+float_ts_dtype = np.dtype([("date", "O"), ("value", "<f8")])

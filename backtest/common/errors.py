@@ -6,10 +6,7 @@ class GenericErrCode(IntEnum):
     UNKNOWN = -1
 
     def __str__(self):
-        return {
-            GenericErrCode.OK: "成功",
-            GenericErrCode.UNKNOWN: "失败",
-        }.get(self)
+        return {GenericErrCode.OK: "成功", GenericErrCode.UNKNOWN: "失败"}.get(self)
 
 
 class Error(Exception):

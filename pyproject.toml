@@ -64,6 +64,7 @@ Jinja2 = {version = "~3.0", optional = true}
 Cython = "^0.29.28"
 zillionare-omicron = {version = "^2.0.0a27", allow-prereleases = true}
 livereload = { version = "^2.6.3", optional = true}
+tabulate = "^0.8.9"
 
 [tool.poetry.extras]
 test = [

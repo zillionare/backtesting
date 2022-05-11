@@ -121,14 +121,7 @@ def start(port: int = None):
 
 
 def main():
-    fire.Fire(
-        {
-            "help": help,
-            "start": start,
-            "stop": stop,
-            "status": status,
-        }
-    )
+    fire.Fire({"help": help, "start": start, "stop": stop, "status": status})
 
 
 if __name__ == "__main__":

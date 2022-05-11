@@ -19,15 +19,15 @@ class Trade:
         side: EntrustSide,
         time: datetime.datetime,
     ):
-        """Trade对象代表了一笔完整的交易。
+        """Trade对象代表了一笔已成功的委托（即已完成的交易）
 
         Args:
             eid : 对应的委托号
             security : 证券代码
-            price : 买入价格
-            shares : 买入数量
-            fee : 买入手续费
-            time: 买入时间
+            price : 交易价格
+            shares : 交易数量
+            fee : 交易手续费
+            time: 交易时间
         """
         self.eid = eid
         self.tid = str(uuid.uuid4())

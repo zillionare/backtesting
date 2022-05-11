@@ -1,14 +1,13 @@
 import logging
 
 import arrow
-from coretypes import FrameType
-from omicron import tf
 from sanic import response
 from sanic.blueprints import Blueprint
 
 from backtest.common.errors import AccountError, GenericErrCode
 from backtest.common.helper import jsonify, make_response, protected, protected_admin
 from backtest.trade.broker import Broker
+from backtest.trade.types import position_dtype
 
 bp = Blueprint("backtest")
 logger = logging.getLogger(__name__)
@@ -188,32 +187,24 @@ async def positions(request):
 
     result = [{k: row[k] for k in position.dtype.names} for row in position]
 
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
 
 
 @bp.route("info", methods=["GET"])
 @protected
 async def info(request):
-    result = request.ctx.broker.info
+    result = await request.ctx.broker.info()
 
-    last_trade = result["last_trade"]
-    if last_trade is not None:
-        result["last_trade"] = arrow.get(last_trade).format("YYYY-MM-DD")
-
-    start = result["start"]
-    if start is not None:
-        result["start"] = arrow.get(start).format("YYYY-MM-DD")
-
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
 
 
 @bp.route("returns", methods=["GET"])
 @protected
 async def get_returns(request):
     date = request.args.get("date")
-    result = request.ctx.broker.get_returns(date).tolist()
+    result = await request.ctx.broker.get_returns(date)
 
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
 
 
 @bp.route("available_money", methods=["GET"])
@@ -292,21 +283,12 @@ async def bills(request):
 
     results["tx"] = broker.transactions
     results["trades"] = broker.trades
-    results["positions"] = {}
-    results["assets"] = []
+    results["positions"] = broker._positions[list(position_dtype.names)].astype(
+        position_dtype
+    )
 
-    for dt in tf.get_frames(
-        broker.account_start_date, broker.account_end_date, FrameType.DAY
-    ):
-        date = tf.int2date(dt)
-
-        position = broker.get_position(date)
-        if position is not None:
-            results["positions"][date] = position
-
-        assest = broker.get_assets(date)
-        if assest is not None:
-            results["assets"].append({date: assest})
+    await broker.recalc_assets()
+    results["assets"] = broker._assets
 
     return response.json(make_response(GenericErrCode.OK, data=jsonify(results)))
 
