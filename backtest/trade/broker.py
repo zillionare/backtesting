@@ -1,5 +1,5 @@
+import asyncio
 import datetime
-import io
 import logging
 from typing import Dict, List, Tuple
 
@@ -94,6 +94,23 @@ class Broker:
 
         # trasaction = buy + sell trade
         self.transactions = []
+
+        self._lock = asyncio.Lock()
+
+    def __getstate__(self):
+        """self._lock is not pickable"""
+        state = self.__dict__.copy()
+        del state["_lock"]
+
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._lock = asyncio.Lock()
+
+    @property
+    def lock(self):
+        return self._lock
 
     @property
     def cash(self):
@@ -404,7 +421,12 @@ class Broker:
             logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
             raise AccountError(f"委托时间超过回测结束时间，{self.bt_stop} -> {bid_time}")
 
-    async def buy(
+    async def buy(self, *args, **kwargs):
+        """同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化"""
+        async with self.lock:
+            return await self._buy(*args, **kwargs)
+
+    async def _buy(
         self,
         security: str,
         bid_price: float,
@@ -827,7 +849,12 @@ class Broker:
 
         return {"status": status, "msg": msg, "data": exit_trades}
 
-    async def sell(
+    async def sell(self, *args, **kwargs):
+        """同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化"""
+        async with self.lock:
+            return await self._sell(*args, **kwargs)
+
+    async def _sell(
         self,
         security: str,
         bid_price: float,
@@ -1127,8 +1154,6 @@ class Broker:
 
 
 if __name__ == "__main__":
-    import asyncio
-
     import omicron
     from sanic import Sanic
 
@@ -1150,6 +1175,6 @@ if __name__ == "__main__":
         await omicron.init()
 
         broker = Broker("aaron", 1_000_000, 1.5e-4)
-        await broker.buy(sec, price, shares, bid_time)
+        await broker._buy(sec, price, shares, bid_time)
 
     asyncio.run(init_and_buy("000001.XSHE", 14.7, 100, bid_time))
