@@ -5,7 +5,6 @@ import cfg4py
 
 from backtest.app import application_init
 from backtest.config import get_config_dir
-from backtest.feed.filefeed import FileFeed
 from backtest.feed.zillionarefeed import ZillionareFeed
 from tests import data_dir
 

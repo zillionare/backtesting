@@ -371,3 +371,63 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("trades", r)
         self.assertIn("positions", r)
         self.assertIn("assets", r)
+
+    async def test_sell_percent(self):
+        response = await post(
+            "buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
+
+        response = await post(
+            "sell_percent",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": None,
+                "percent": 0.5,
+                "order_time": "2022-03-03 10:04:00",
+            },
+        )
+
+        result = response["data"]
+
+        # should be 250, rounded to 300
+        self.assertEqual(300, result[0]["volume"])
+
+    async def test_metrics_2(self):
+        code = "600919.XSHG"
+        price = 7.02
+        volume = 300
+
+        _ = await post(
+            "buy",
+            self.token,
+            {
+                "security": code,
+                "price": price,
+                "volume": volume,
+                "order_time": "2022-3-1 10:35:00",
+            },
+        )
+
+        await post(
+            "sell",
+            self.token,
+            {
+                "security": code,
+                "price": 6.83,
+                "volume": volume,
+                "order_time": "2022-3-3 09:31:00",
+            },
+        )
+
+        metrics = await get("metrics", self.token, start="2022-3-1", end="2022-3-3")
+        print(metrics)

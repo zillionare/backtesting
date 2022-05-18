@@ -1,6 +1,7 @@
 import logging
 
 import arrow
+from omicron import math_round
 from sanic import response
 from sanic.blueprints import Blueprint
 
@@ -150,6 +151,31 @@ async def sell(request):
     order_time = arrow.get(params["order_time"]).naive
 
     try:
+        result = await request.ctx.broker.sell(security, price, volume, order_time)
+        return response.json(jsonify(result))
+    except Exception as e:
+        logger.exception(e)
+        return response.text(str(e), status=500)
+
+
+@bp.route("sell_percent", methods=["POST"])
+@protected
+async def sell_percent(request):
+    params = request.json or {}
+
+    security = params["security"]
+    price = params["price"]
+    percent = params["percent"]
+    order_time = arrow.get(params["order_time"]).naive
+
+    try:
+        assert 0 < percent <= 1.0, "percent must be between 0 and 1.0"
+        broker: Broker = request.ctx.broker
+        position = broker.get_position(order_time.date())
+        sellable = position[position["security"] == security][0]["sellable"]
+
+        volume = math_round(sellable * percent / 100, 0) * 100
+
         result = await request.ctx.broker.sell(security, price, volume, order_time)
         return response.json(jsonify(result))
     except Exception as e:

@@ -1151,30 +1151,3 @@ class Broker:
             "volatility": vr,
             "baseline": ref_results,
         }
-
-
-if __name__ == "__main__":
-    import omicron
-    from sanic import Sanic
-
-    app = Sanic("backtest")
-
-    broker = Broker("aaron", 1_000_000, 1.5e-4)
-    bid_time = datetime.datetime(2022, 3, 18, 9, 35)
-
-    async def init_and_buy(sec, price, shares, bid_time):
-        import os
-
-        from backtest.config import get_config_dir
-        from backtest.feed.basefeed import BaseFeed
-
-        feed = await BaseFeed.create_instance(interface="zillionare")
-        app.ctx.feed = feed
-
-        cfg4py.init("~/zillionare/backtest/config")
-        await omicron.init()
-
-        broker = Broker("aaron", 1_000_000, 1.5e-4)
-        await broker._buy(sec, price, shares, bid_time)
-
-    asyncio.run(init_and_buy("000001.XSHE", 14.7, 100, bid_time))

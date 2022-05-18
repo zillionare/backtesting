@@ -18,7 +18,6 @@ from omicron.models.timeframe import TimeFrame
 
 from backtest.app import application as app
 from backtest.config import get_config_dir
-from backtest.feed.filefeed import FileFeed
 from backtest.web.interfaces import bp
 
 os.environ[cfg4py.envar] = "DEV"
@@ -155,12 +154,6 @@ def bars_from_csv(
         is_date = True
 
     return lines2bars(read_csv(fname, start_line, end_line), is_date)
-
-
-def create_file_feed():
-    match_bars_file = os.path.join(data_dir(), "bars_1m.pkl")
-    price_limits_file = os.path.join(data_dir(), "limits.pkl")
-    return FileFeed(match_bars_file, price_limits_file)
 
 
 def assert_deep_almost_equal(test_case, expected, actual, *args, **kwargs):

@@ -19,15 +19,11 @@ class BaseFeed(metaclass=ABCMeta):
         """
         创建实例
         """
-        from backtest.feed.filefeed import FileFeed
         from backtest.feed.zillionarefeed import ZillionareFeed
 
         if interface == "zillionare":
             feed = ZillionareFeed(**kwargs)
             await feed.init()
-            return feed
-        elif interface == "file":
-            feed = FileFeed(**kwargs)
             return feed
         else:
             raise TypeError(f"{interface} is not supported")

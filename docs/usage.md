@@ -61,7 +61,4 @@ datasource:
       org: my-org
       bucket_name: my-bucket
       enable_compress: true
-  filefeed:
-    path: /data/feed/
-
 ```
