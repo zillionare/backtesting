@@ -1,7 +1,7 @@
 version=`poetry version | awk '{print $2}'`
-echo $version
+echo "packaging backtest version = $version"
 docker rmi backtest
-docker build . -t backtest
+export bt_version=$version;docker build . -t backtest
 
 if [ $# -lt 1 ]; then
     exit 0
