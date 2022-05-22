@@ -19,11 +19,13 @@ from empyrical import (
 from omicron import array_price_equal, math_round, price_equal
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
+from pyemit import emit
 
 from backtest.common.errors import AccountError, BadParameterError, NoDataForMatchError
 from backtest.common.helper import get_app_context, make_response, tabulate_numpy_array
 from backtest.trade.trade import Trade
 from backtest.trade.types import (
+    E_BACKTEST,
     BidType,
     Entrust,
     EntrustError,
@@ -618,6 +620,7 @@ class Broker:
         else:
             status = EntrustError.SUCCESS
 
+        await emit.emit(E_BACKTEST, {"buy": trade})
         return {"status": status, "msg": msg, "data": trade}
 
     async def _before_trade(self, bid_time: Frame):
@@ -847,6 +850,7 @@ class Broker:
         else:
             status = EntrustError.SUCCESS
 
+        await emit.emit(E_BACKTEST, {"sell": exit_trades})
         return {"status": status, "msg": msg, "data": exit_trades}
 
     async def sell(self, *args, **kwargs):

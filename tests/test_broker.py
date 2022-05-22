@@ -1,4 +1,6 @@
+import asyncio
 import datetime
+import logging
 import unittest
 from unittest import mock
 
@@ -7,6 +9,7 @@ import cfg4py
 import numpy as np
 import omicron
 from omicron.models.timeframe import TimeFrame as tf
+from pyemit import emit
 
 from backtest.common.helper import get_app_context
 from backtest.config import get_config_dir
@@ -14,6 +17,7 @@ from backtest.feed.zillionarefeed import ZillionareFeed
 from backtest.trade.broker import Broker
 from backtest.trade.trade import Trade
 from backtest.trade.types import (
+    E_BACKTEST,
     EntrustError,
     EntrustSide,
     assets_dtype,
@@ -22,15 +26,19 @@ from backtest.trade.types import (
 )
 from tests import assert_deep_almost_equal, data_populate
 
+logger = logging.getLogger(__name__)
+
 
 class BrokerTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        cfg4py.init(get_config_dir())
+        cfg = cfg4py.init(get_config_dir())
 
         try:
             await omicron.init()
         except Exception:
             tf.service_degrade()
+
+        await emit.start(emit.Engine.REDIS, start_server=True, dsn=cfg.redis.dsn)
 
         self.ctx = get_app_context()
         self.ctx.feed = ZillionareFeed()
@@ -42,6 +50,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self) -> None:
         await omicron.close()
+        await emit.stop()
         return await super().asyncTearDown()
 
     def _check_position(self, broker, actual, bid_time):
@@ -83,6 +92,10 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         hljh, capital, commission = "002537.XSHE", 1e10, 1e-4
         broker = Broker("test", capital, commission)
 
+        async def on_backtest_event(data):
+            logger.info("on_backtest_event: %s", data)
+
+        emit.register(E_BACKTEST, on_backtest_event)
         # 委买部分成交
         result = await broker.buy(
             hljh,

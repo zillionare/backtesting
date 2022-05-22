@@ -5,6 +5,7 @@ import cfg4py
 import fire
 import omicron
 from omicron.models.timeframe import TimeFrame
+from pyemit import emit
 from sanic import Sanic
 
 from backtest.config import get_config_dir
@@ -21,8 +22,13 @@ async def application_init(app, *args):
     try:
         await omicron.init()
     except Exception:
+        logger.warning(
+            "omicron running in degrade mode, this may cause inaccurate results due to calendar issues"
+        )
         TimeFrame.service_degrade()
 
+    cfg = cfg4py.get_instance()
+    await emit.start(emit.Engine.REDIS, start_server=True, dsn=cfg.redis.dsn)
     feed = await BaseFeed.create_instance(interface="zillionare")
     await feed.init()
 
@@ -34,6 +40,7 @@ async def application_init(app, *args):
 @application.listener("after_server_stop")
 async def application_exit(app, *args):
     await omicron.close()
+    await emit.stop()
     accounts = app.ctx.accounts
     accounts.on_exit()
 

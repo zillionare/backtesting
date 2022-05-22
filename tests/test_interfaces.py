@@ -6,7 +6,7 @@ from unittest import mock
 import arrow
 import cfg4py
 
-from backtest.app import application_init
+from backtest.app import application_exit, application_init
 from backtest.common.helper import jsonify
 from tests import (
     assert_deep_almost_equal,
@@ -31,7 +31,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.admin_token = cfg.auth.admin
 
         await data_populate()
-        await application_init(app)
 
         await delete("accounts", self.admin_token)
 

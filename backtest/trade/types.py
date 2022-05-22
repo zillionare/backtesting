@@ -1,8 +1,11 @@
 import datetime
 import uuid
 from enum import IntEnum
+from typing import Final
 
 import numpy as np
+
+E_BACKTEST: Final = "BACKTEST"
 
 
 class EntrustSide(IntEnum):
