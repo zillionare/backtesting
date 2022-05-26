@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-backtest"
-version = "0.2.6"
+version = "0.3.0"
 homepage = "https://github.com/zillionare/backtest"
 description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
@@ -16,7 +16,7 @@ classifiers=[
 ]
 packages = [
     { include = "backtest" },
-    { include = "tests", format = "sdist" },
+    { include = "tests"},
 ]
 
 [[tool.poetry.source]]
@@ -62,10 +62,12 @@ pandas = "^1.4.1"
 sanic-testing = {version = "^0.8.2", optional = true}
 Jinja2 = {version = "~3.0", optional = true}
 Cython = "^0.29.28"
-zillionare-omicron = {version = "^2.0.0.a29", allow-prereleases = true}
+zillionare-omicron = {version = "^2.0.0a30", allow-prereleases = true}
 livereload = { version = "^2.6.3", optional = true}
 tabulate = "^0.8.9"
 pyemit = "0.4.5"
+mike = {version = "^1.1.2", optional = true}
+async-timeout = "^4.0"
 
 [tool.poetry.extras]
 test = [
@@ -87,7 +89,8 @@ doc = [
     "mkdocs-material-extension",
     "mkdocs-autorefs",
     "Jinja2",
-    "livereload"
+    "livereload",
+    "mike"
     ]
 
 [tool.poetry.scripts]

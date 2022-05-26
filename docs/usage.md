@@ -13,9 +13,9 @@ pip install zillionare-trader-client
 
 使用示例：
 ```
-from traderclient import Client
+from traderclient import TraderClient
 
-client = Client(url, account, token)
+client = TraderClient(url, account, token)
 client.buy(symbol, price, amount)
 ```
 详细使用请参考[客户端使用](https://zillionare-trader-client.readthedocs.io/）

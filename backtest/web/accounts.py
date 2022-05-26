@@ -48,7 +48,7 @@ class Accounts:
         self,
         name: str,
         token: str,
-        capital: float,
+        principal: float,
         commission: float,
         start: datetime.date = None,
         end: datetime.date = None,
@@ -58,7 +58,7 @@ class Accounts:
         Args:
             name (str): 账户/策略名称
             token (str): 账户token
-            capital (float): 账户起始资金
+            principal (float): 账户起始资金
             commission (float): 账户手续费
             start (datetime.date, optional): 回测开始日期，如果是模拟盘，则可为空
             end (datetime.date, optional): 回测结束日期，如果是模拟盘，则可为空
@@ -72,7 +72,7 @@ class Accounts:
                 msg = f"账户{name}:{token}已经存在，不能重复创建。"
                 raise AccountError(msg)
 
-        broker = Broker(name, capital, commission, start, end)
+        broker = Broker(name, principal, commission, start, end)
         self._brokers[token] = broker
 
         logger.info("新建账户:%s, %s", name, token)
@@ -80,7 +80,7 @@ class Accounts:
             "account_name": name,
             "token": token,
             "account_start_date": broker.account_start_date,
-            "capital": broker.capital,
+            "principal": broker.principal,
         }
 
     def list_accounts(self, mode: str):
@@ -102,7 +102,7 @@ class Accounts:
                 "account_name": broker.account_name,
                 "token": token,
                 "account_start_date": broker.account_start_date,
-                "capital": broker.capital,
+                "principal": broker.principal,
             }
             for token, broker in filtered.items()
         ]

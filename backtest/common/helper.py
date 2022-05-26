@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 from enum import Enum
 from functools import wraps
 from typing import Any, Union
@@ -9,6 +10,8 @@ import numpy as np
 from expiringdict import ExpiringDict
 from sanic import Sanic, response
 from tabulate import tabulate
+
+from backtest.common.errors import AccountError, EntrustError
 
 seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
 
@@ -25,6 +28,9 @@ def check_token(request):
         return False
 
     app = Sanic.get_app("backtest")
+
+    if check_admin_token(request):
+        return True
 
     if app.ctx.accounts.is_valid(request.token):
         request.ctx.broker = app.ctx.accounts.get_broker(request.token)
@@ -66,14 +72,22 @@ def protected(wrapped):
         async def decorated_function(request, *args, **kwargs):
             is_authenticated = check_token(request)
             is_duplicated = check_duplicated_request(request)
+            params = request.json or request.args
 
             if is_authenticated and not is_duplicated:
                 try:
                     result = await f(request, *args, **kwargs)
                     return result
+                except AccountError as e:
+                    return response.text(e.message, status=499)
+                except EntrustError as e:
+                    logger.exception(e)
+                    logger.warning("sell_percent error: %s", params)
+                    return response.text(f"{e.status_code} {e.message}", status=499)
                 except Exception as e:
                     logger.exception(e)
-                    return response.text(str(e), status=500)
+                    logger.warning("%s error: %s", f.__name__, params)
+                    return response.text(str(e), status=499)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
                 return response.json({"msg": "token is invalid"}, 401)
@@ -110,17 +124,6 @@ def protected_admin(wrapped):
         return decorated_function
 
     return decorator(wrapped)
-
-
-def make_response(err_code: Union[Enum, int], data: Any = None, err_msg: str = None):
-    if err_msg is None:
-        err_msg = str(err_code)
-
-    return {
-        "status": err_code.value if isinstance(err_code, Enum) else err_code,
-        "msg": err_msg,
-        "data": data,
-    }
 
 
 def jsonify(obj) -> dict:

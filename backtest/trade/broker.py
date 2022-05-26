@@ -21,14 +21,13 @@ from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
-from backtest.common.errors import AccountError, BadParameterError, NoDataForMatchError
-from backtest.common.helper import get_app_context, make_response, tabulate_numpy_array
+from backtest.common.errors import AccountError, BadParameterError, EntrustError
+from backtest.common.helper import get_app_context, tabulate_numpy_array
 from backtest.trade.trade import Trade
 from backtest.trade.types import (
     E_BACKTEST,
     BidType,
     Entrust,
-    EntrustError,
     EntrustSide,
     assets_dtype,
     cash_dtype,
@@ -45,16 +44,16 @@ class Broker:
     def __init__(
         self,
         account_name: str,
-        capital: float,
+        principal: float,
         commission: float,
         bt_start: datetime.date = None,
         bt_end: datetime.date = None,
     ):
-        """_summary_
+        """创建一个Broker对象
 
         Args:
             account_name : 账号/策略名
-            capital : 初始本金
+            principal : 初始本金
             commission : 佣金率
             start : 开始日期(回测时使用)
             end : 结束日期（回测时使用）
@@ -79,7 +78,7 @@ class Broker:
         self.commission = commission
 
         # 初始本金
-        self.capital = capital
+        self.principal = principal
         # 每日盘后可用资金
         self._cash = np.array([], dtype=cash_dtype)
         # 每日总资产, 包括本金和持仓资产
@@ -117,7 +116,7 @@ class Broker:
     @property
     def cash(self):
         if self._cash.size == 0:
-            return self.capital
+            return self.principal
 
         return self._cash[-1]["cash"].item()
 
@@ -148,12 +147,12 @@ class Broker:
             float: 某日可用资金
         """
         if self._cash.size == 0:
-            return self.capital
+            return self.principal
 
         if dt > self._cash[-1]["date"]:
             return self._cash[-1]["cash"].item()
         elif dt < self._cash[0]["date"]:
-            return self.capital
+            return self.principal
 
         result = self._cash[self._cash["date"] == dt]["cash"]
         if result.size == 0:
@@ -223,7 +222,7 @@ class Broker:
 
         # 把期初资产加进来
         _before_start = tf.day_shift(start, -1)
-        self._assets = np.array([(_before_start, self.capital)], dtype=assets_dtype)
+        self._assets = np.array([(_before_start, self.principal)], dtype=assets_dtype)
         frames = tf.get_frames(start, end, FrameType.DAY)
         for frame in frames:
             date = tf.int2date(frame)
@@ -233,26 +232,32 @@ class Broker:
         """账号相关信息
 
         Returns:
-            A dict of the following:
-            ‒ start: since when the account is set
-            ‒ name: the name/id of the account
-            ‒ assets: 当前资产
-            ‒ captial: 本金
-            ‒ last_trade: 最后一笔交易时间
-            ‒ trades: 交易笔数
+            Dict: 账号相关信息：
+
+                - name: str, 账户名
+                - principal: float, 初始资金
+                - assets: float, 当前资产
+                - start: datetime.date, 账户创建时间
+                - last_trade: datetime.datetime, 最后一笔交易时间
+                - available: float, 可用资金
+                - market_value: 股票市值
+                - pnl: 盈亏(绝对值)
+                - ppnl: 盈亏(百分比)，即pnl/principal
+                - positions: 当前持仓，dtype为position_dtype的numpy structured array
+
         """
         await self.recalc_assets()
-        returns = await self.get_returns(recalc_assets=False)
         return {
-            "start": self.account_start_date,
             "name": self.account_name,
+            "principal": self.principal,
             "assets": self.assets,
-            "capital": self.capital,
+            "start": self.account_start_date,
             "last_trade": self.last_trade_date,
-            "trades": len(self.trades),
-            "closed": len(self.transactions),
-            "earnings": self.assets - self.capital,
-            "returns": returns,
+            "available": self.cash,
+            "market_value": self.assets - self.cash,
+            "pnl": self.assets - self.principal,
+            "ppnl": self.assets / self.principal - 1,
+            "positions": self.position,
         }
 
     async def get_returns(
@@ -302,7 +307,7 @@ class Broker:
         如果要获取历史上某天的总资产，请使用`get_assets`方法。
         """
         if self._assets.size == 0:
-            return self.capital
+            return self.principal
         else:
             return self._assets[-1]["assets"]
 
@@ -319,7 +324,7 @@ class Broker:
 
         """
         if self._assets.size == 0:
-            return self.capital
+            return self.principal
 
         result = self._assets[self._assets["date"] == date]
         if result.size == 1:
@@ -338,7 +343,7 @@ class Broker:
             返回总资产, 可用资金, 持仓市值
         """
         if date < self.account_start_date:
-            return self.capital, 0, 0
+            return self.principal, 0, 0
 
         if (self.mode == "bt" and date > self.bt_stop) or date > arrow.now().date():
             raise ValueError(
@@ -382,13 +387,15 @@ class Broker:
             return np.array([], dtype=position_dtype)
 
         last_day = self._positions[-1]["date"]
-        return self._positions[self._positions["date"] == last_day]
+        result = self._positions[self._positions["date"] == last_day]
+
+        return result[list(position_dtype.names)].astype(position_dtype)
 
     def __str__(self):
         s = (
             f"账户：{self.account_name}:\n"
             + f"    总资产：{self.assets:,.2f}\n"
-            + f"    本金：{self.capital:,.2f}\n"
+            + f"    本金：{self.principal:,.2f}\n"
             + f"    可用资金：{self.cash:,.2f}\n"
             + f"    持仓：{self.position}\n"
         )
@@ -491,13 +498,14 @@ class Broker:
         bars = await feed.get_bars_for_match(security, bid_time)
         if bars.size == 0:
             logger.warning("failed to match %s, no data at %s", security, bid_time)
-            raise NoDataForMatchError(f"没有{security}在{bid_time}当天的数据")
+            raise EntrustError(
+                EntrustError.NODATA_FOR_MATCH, security=security, time=bid_time
+            )
 
         # 移除掉涨停和价格高于委买价的bar后，看还能买多少股
-        bars, status = self._remove_for_buy(bars, bid_price, buy_limit_price)
-        if bars is None:
-            logger.info("委买失败：%s, %s, reason: %s", security, bid_time, status)
-            return {"status": status, "msg": str(status), "data": None}
+        bars = self._remove_for_buy(
+            security, bid_time, bars, bid_price, buy_limit_price
+        )
 
         # 将买入数限制在可用资金范围内
         shares_to_buy = min(
@@ -508,7 +516,12 @@ class Broker:
         shares_to_buy = shares_to_buy // 100 * 100
         if shares_to_buy < 100:
             logger.info("委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid)
-            return make_response(EntrustError.NO_CASH)
+            raise EntrustError(
+                EntrustError.NO_CASH,
+                account=self.account_name,
+                required=100 * bid_price,
+                available=self.cash,
+            )
 
         mean_price, filled, close_time = self._match_buy(bars, shares_to_buy)
 
@@ -581,7 +594,18 @@ class Broker:
 
     async def _fill_buy_order(
         self, en: Entrust, price: float, filled: float, close_time: datetime.datetime
-    ):
+    ) -> Trade:
+        """生成trade,更新交易、持仓和assets
+
+        Args:
+            en : _description_
+            price : _description_
+            filled : _description_
+            close_time : _description_
+
+        Returns:
+            成交记录
+        """
         money = price * filled
         fee = money * self.commission
 
@@ -613,15 +637,8 @@ class Broker:
         cash_change = -1 * (money + fee)
         await self._update_assets(cash_change, close_time.date())
 
-        msg = "委托成功"
-        if filled < en.bid_shares:
-            status = EntrustError.PARTIAL_SUCCESS
-            msg += "，部分成交{}股".format(filled)
-        else:
-            status = EntrustError.SUCCESS
-
         await emit.emit(E_BACKTEST, {"buy": trade})
-        return {"status": status, "msg": msg, "data": trade}
+        return trade
 
     async def _before_trade(self, bid_time: Frame):
         """交易前的准备工作
@@ -751,7 +768,9 @@ class Broker:
             dt = dt.date()
 
         if self._cash.size == 0:
-            self._cash = np.array([(dt, self.capital + cash_change)], dtype=cash_dtype)
+            self._cash = np.array(
+                [(dt, self.principal + cash_change)], dtype=cash_dtype
+            )
         else:
             # _before_trade应该已经为当日交易准备好了可用资金数据
             assert self._cash[-1]["date"] == dt
@@ -771,7 +790,9 @@ class Broker:
         )
         logger.info("\n%s", tabulate_numpy_array(info))
 
-    async def _fill_sell_order(self, en: Entrust, price: float, to_sell: float) -> Dict:
+    async def _fill_sell_order(
+        self, en: Entrust, price: float, to_sell: float
+    ) -> List[Trade]:
         """从positions中扣减股票、增加可用现金
 
         Args:
@@ -780,7 +801,7 @@ class Broker:
             filled : 回报的卖出数量
 
         Returns:
-            response,格式参考make_response
+            成交记录列表
         """
         dt = en.bid_time.date()
 
@@ -843,15 +864,8 @@ class Broker:
 
         await self._update_assets(refund, en.bid_time.date())
 
-        msg = "委托成功"
-        if to_sell > 0:
-            status = EntrustError.PARTIAL_SUCCESS
-            msg += "，部分成交{}股".format(to_sell)
-        else:
-            status = EntrustError.SUCCESS
-
         await emit.emit(E_BACKTEST, {"sell": exit_trades})
-        return {"status": status, "msg": msg, "data": exit_trades}
+        return exit_trades
 
     async def sell(self, *args, **kwargs):
         """同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化"""
@@ -864,7 +878,7 @@ class Broker:
         bid_price: float,
         bid_shares: int,
         bid_time: datetime.datetime,
-    ) -> Dict:
+    ) -> List[Trade]:
         """卖出委托
 
         Args:
@@ -874,13 +888,7 @@ class Broker:
             bid_time: 委托时间
 
         Returns:
-            {
-                "status": 0 # 0表示成功，否则为错误码
-                "msg": "blah"
-                "data": {
-
-                }
-            }
+            成交记录列表
         """
         await self._before_trade(bid_time)
 
@@ -901,12 +909,13 @@ class Broker:
         bars = await feed.get_bars_for_match(security, bid_time)
         if bars.size == 0:
             logger.warning("failed to match: %s, no data at %s", security, bid_time)
-            raise NoDataForMatchError(f"No data for {security} at {bid_time}")
+            raise EntrustError(
+                EntrustError.NODATA_FOR_MATCH, security=security, time=bid_time
+            )
 
-        bars, status = self._remove_for_sell(bars, bid_price, sell_limit_price)
-        if bars is None:
-            logger.info("委卖失败：%s, %s, reason: %s", security, bid_time, status)
-            return {"status": status, "msg": str(status), "data": None}
+        bars = self._remove_for_sell(
+            security, bid_time, bars, bid_price, sell_limit_price
+        )
 
         c, v = bars["close"], bars["volume"]
 
@@ -915,7 +924,9 @@ class Broker:
         shares_to_sell = self._get_sellable_shares(security, bid_shares, bid_time)
         if shares_to_sell == 0:
             logger.info("卖出失败: %s %s %s, 可用股数为0", security, bid_shares, bid_time)
-            return make_response(EntrustError.NO_POSITION)
+            raise EntrustError(
+                EntrustError.NO_POSITION, security=security, time=bid_time
+            )
 
         # until i the order can be filled
         where_total_filled = np.argwhere(cum_v >= shares_to_sell)
@@ -971,7 +982,12 @@ class Broker:
         return min(shares_asked, shares)
 
     def _remove_for_buy(
-        self, bars: np.ndarray, price: float, limit_price: float
+        self,
+        security: str,
+        order_time: datetime.datetime,
+        bars: np.ndarray,
+        price: float,
+        limit_price: float,
     ) -> np.ndarray:
         """
         去掉已达到涨停时的分钟线，或者价格高于买入价的bars
@@ -980,29 +996,45 @@ class Broker:
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
-            return None, EntrustError.REACH_BUY_LIMIT
+            raise EntrustError(
+                EntrustError.REACH_BUY_LIMIT, security=security, time=order_time
+            )
 
         bars = bars[(bars["close"] <= price)]
         if bars.size == 0:
-            return None, EntrustError.PRICE_NOT_MEET
+            raise EntrustError(
+                EntrustError.PRICE_NOT_MEET,
+                security=security,
+                time=order_time,
+                entrust=price,
+            )
 
-        return bars, None
+        return bars
 
     def _remove_for_sell(
-        self, bars: np.ndarray, price: float, limit_price: float
+        self,
+        security: str,
+        order_time: datetime.datetime,
+        bars: np.ndarray,
+        price: float,
+        limit_price: float,
     ) -> np.ndarray:
         """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交"""
         reach_limit = array_price_equal(bars["close"], limit_price)
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
-            return None, EntrustError.REACH_SELL_LIMIT
+            raise EntrustError(
+                EntrustError.REACH_SELL_LIMIT, security=security, time=order_time
+            )
 
         bars = bars[(bars["close"] >= price)]
         if bars.size == 0:
-            return None, EntrustError.PRICE_NOT_MEET
+            raise EntrustError(
+                EntrustError.PRICE_NOT_MEET, security=security, entrust=price
+            )
 
-        return bars, None
+        return bars
 
     def _reached_trade_price_limits(
         self, bars: np.ndarray, bid_time: datetime.datetime, limit_price: float
@@ -1023,8 +1055,7 @@ class Broker:
         end: datetime.date = None,
         baseline: str = None,
     ) -> Dict:
-        """
-        获取指定时间段的账户指标
+        """获取指定时间段的账户指标
 
         Args:
             start: 开始时间
@@ -1144,7 +1175,7 @@ class Broker:
             "window": window,
             "total_tx": total_tx,
             "total_profit": total_profit,
-            "total_profit_rate": total_profit / self.capital,
+            "total_profit_rate": total_profit / self.principal,
             "win_rate": wr,
             "mean_return": mean_return,
             "sharpe": sharpe,

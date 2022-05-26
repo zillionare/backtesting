@@ -40,10 +40,10 @@ feed:
   type: zillionare
 
 redis:
-  dsn: redis://192.168.100.101:56379
+  dsn: redis://redis:6379
 influxdb:
-  url: http://192.168.100.101:58086
-  token: hwxHycJfp_t6bCOYe2MhEDW4QBOO4FDtgeBWnPR6bGZJGEZ_41m_OHtTJFZKyD2HsbVqkZM8rJNkMvjyoXCG6Q==
-  org: zillonare
-  bucket_name: zillonare
+  url: http://influxdb:8086
+  token: my-token
+  org: my-org
+  bucket_name: my-bucket
   enable_compress: true

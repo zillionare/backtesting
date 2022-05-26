@@ -55,7 +55,7 @@ class Trade:
             "security": self.security,
             "order_side": str(self.side),
             "price": self.price,
-            "volume": self.shares,
+            "filled": self.shares,
             "time": self.time.isoformat(),
             "trade_fees": self.fee,
         }
@@ -68,10 +68,10 @@ class Trade:
         计算时将根据售出的股数，分摊买入和卖的交易成本。返回未售出的股份和未分摊的成本。
 
         Args:
-            shares : 待出售股数
-            price : 出售价格
-            fee : 交易手续费
-            close_time : 成交日期
+            shares: 待出售股数
+            price: 出售价格
+            fee: 交易手续费
+            close_time: 成交日期
         """
         assert self.side == EntrustSide.BUY
 

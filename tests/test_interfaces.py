@@ -23,7 +23,7 @@ app = init_interface_test()
 class InterfacesTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         name = "test"
-        capital = 1_000_000
+        principal = 1_000_000
         commission = 1e-4
         self.token = uuid.uuid4().hex
 
@@ -35,18 +35,21 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await delete("accounts", self.admin_token)
 
         response = await post(
-            "accounts",
-            self.admin_token,
+            "start_backtest",
+            self.token,
             data={
                 "name": name,
-                "capital": capital,
+                "principal": principal,
                 "commission": commission,
                 "token": self.token,
+                "start": "2022-03-01",
+                "end": "2022-03-14",
             },
         )
 
-        self.assertEqual(response["status"], 0)
-        self.assertEqual(response["data"]["account_name"], name)
+        self.assertEqual(response["account_name"], "test")
+        self.assertEqual(response["principal"], principal)
+        self.assertEqual(response["token"], self.token)
 
         return await super().asyncSetUp()
 
@@ -54,23 +57,24 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         """create, list and delete accounts"""
 
         await post(
-            "accounts",
-            self.admin_token,
+            "start_backtest",
+            self.token,
             data={
                 "name": "test2",
-                "capital": 1_000_000,
+                "principal": 1_000_000,
                 "commission": 1e-4,
                 "token": uuid.uuid4().hex,
+                "start": "2022-02-28",
+                "end": "2022-03-14",
             },
         )
 
         response = await get("accounts", self.admin_token)
-        self.assertEqual(2, len(response["data"]))
-        self.assertEqual(response["status"], 0)
-        self.assertEqual(response["data"][0]["account_name"], "test")
+        self.assertEqual(2, len(response))
+        self.assertEqual(response[0]["account_name"], "test")
 
-        res = await delete("accounts", self.admin_token, params={"name": "test2"})
-        self.assertEqual(res["data"], 1)
+        # should raise no Error
+        await delete("accounts", self.admin_token, params={"name": "test2"})
 
     async def test_status(self):
         response = await get("status", self.token)
@@ -90,12 +94,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        self.assertEqual(response["status"], 0)
-
-        data = response["data"]
-        self.assertEqual(data["security"], "002537.XSHE")
-        self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
-        self.assertEqual(data["volume"], 500)
+        self.assertEqual(response["security"], "002537.XSHE")
+        self.assertAlmostEqual(response["price"], 9.420000076293945, 2)
+        self.assertEqual(response["filled"], 500)
 
     async def test_market_buy(self):
         response = await post(
@@ -103,7 +104,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             self.token,
             {
                 "security": "002537.XSHE",
-                "price": 10,
                 "volume": 500,
                 "timeout": 0.5,
                 "order_time": "2022-03-01 10:04:00",
@@ -111,12 +111,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        self.assertEqual(response["status"], 0)
-
-        data = response["data"]
-        self.assertEqual(data["security"], "002537.XSHE")
-        self.assertAlmostEqual(data["price"], 9.420000076293945, 2)
-        self.assertEqual(data["volume"], 500)
+        self.assertEqual(response["security"], "002537.XSHE")
+        self.assertAlmostEqual(response["price"], 9.420000076293945, 2)
+        self.assertEqual(response["filled"], 500)
 
     async def test_sell(self):
         response = await post(
@@ -143,9 +140,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        tx = response["data"][0]
+        tx = response[0]
         self.assertEqual(tx["security"], "002537.XSHE")
-        self.assertEqual(tx["volume"], 500)
+        self.assertEqual(tx["filled"], 500)
         self.assertAlmostEqual(tx["price"], 10.45, 2)
 
     async def test_market_sell(self):
@@ -173,14 +170,14 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        tx = response["data"][0]
+        tx = response[0]
         self.assertEqual(tx["security"], "002537.XSHE")
-        self.assertEqual(tx["volume"], 500)
+        self.assertEqual(tx["filled"], 500)
         self.assertAlmostEqual(tx["price"], 10.45, 2)
 
     async def test_position(self):
         response = await get("positions", self.token)
-        self.assertListEqual([], response["data"])
+        self.assertEqual(0, len(response))
 
         await post(
             "buy",
@@ -196,24 +193,23 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         response = await get("positions", self.token)
-        position = response["data"][0]
+        position = response[0]
         self.assertEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
         response = await get("positions", self.token, date="2022-03-07")
-        position = response["data"][0]
+        position = response[0]
 
         self.assertAlmostEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
-    async def test_balance(self, mock_now):
-        "this also test info, available_money, available_shares, metrics, get_returns"
-        balance = (await get("balance", self.token))["data"]
+    async def test_info(self, mock_now):
+        balance = await get("info", self.token)
         self.assertEqual(balance["available"], 1_000_000)
-        self.assertEqual(balance["total"], 1_000_000)
+        self.assertEqual(balance["assets"], 1_000_000)
         self.assertAlmostEqual(balance["pnl"], 0, 2)
 
         await post(
@@ -229,29 +225,12 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        balance = (await get("balance", self.token))["data"]
-        self.assertAlmostEqual(balance["available"], 995289.5289618492, 2)
-        self.assertAlmostEqual(balance["market_value"], 4750.0, 2)
-        self.assertAlmostEqual(balance["total"], 1000039.528, 2)
-        self.assertAlmostEqual(balance["pnl"], 39.5289, 2)
-        self.assertAlmostEqual(balance["ppnl"], 39.5289 / 1_000_000, 2)
-
-        info = (await get("info", self.token))["data"]
-        self.assertEqual(info["start"], "2022-03-01")
+        info = await get("info", self.token)
+        self.assertAlmostEqual(info["available"], 995289.5289618492, 2)
+        self.assertAlmostEqual(info["market_value"], 4780.0, 2)
         self.assertAlmostEqual(info["assets"], 1000069.528, 2)
-        self.assertAlmostEqual(info["earnings"], 69.52896, 2)
-
-        available_money = (await get("available_money", self.token))["data"]
-        self.assertAlmostEqual(995289.5289, available_money, 2)
-
-        available_shares = (await get("available_shares", self.token))["data"]
-        self.assertEqual(available_shares["002537.XSHE"], 0)
-
-        metrics = (await get("metrics", self.token))["data"]
-        self.assertEqual(metrics["total_tx"], 0)
-
-        returns = (await get("returns", self.token))["data"]
-        print(returns)
+        self.assertAlmostEqual(info["pnl"], 69.5289, 2)
+        self.assertAlmostEqual(info["ppnl"], 69.5289 / 1_000_000, 2)
 
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
     async def test_metrics(self, mocked_now):
@@ -294,7 +273,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        actual = (await get("metrics", self.token, baseline=hljh))["data"]
+        actual = await get("metrics", self.token, baseline=hljh)
         exp = {
             "start": datetime.date(2022, 3, 1),
             "end": datetime.date(2022, 3, 14),
@@ -322,7 +301,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        assert_deep_almost_equal(self, jsonify(exp), actual, places=2)
+        assert_deep_almost_equal(self, exp, actual, places=2)
 
     async def test_start_backtest(self):
         "test start_backtest"
@@ -334,7 +313,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 "version": 0.1,
                 "start": "2022-03-01",
                 "end": "2022-03-14",
-                "capital": 1_000_000,
+                "principal": 1_000_000,
                 "commission": 1e-4,
             },
         )
@@ -344,10 +323,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_protect_admin(self):
         """valid admin token is tested through other tests"""
-        response = await post(
-            "accounts", "invalid_token", {"username": "test", "password": "test"}
-        )
-        self.assertEqual(response["msg"], "token is invalid")
+        response = await get("accounts", "invalid_token")
+        self.assertIsNone(response)
 
     async def test_bills(self):
         await delete("accounts", self.admin_token)
@@ -357,7 +334,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             self.admin_token,
             data={
                 "name": "test_bill",
-                "capital": 1_000_000,
+                "principal": 1_000_000,
                 "commission": 1e-4,
                 "token": self.token,
                 "start": "2022-03-01",
@@ -365,7 +342,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        r = ((await get("bills", self.token)) or {}).get("data")
+        r = (await get("bills", self.token)) or {}
         self.assertIn("tx", r)
         self.assertIn("trades", r)
         self.assertIn("positions", r)
@@ -396,37 +373,5 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        result = response["data"]
-
         # should be 250, rounded to 300
-        self.assertEqual(300, result[0]["volume"])
-
-    async def test_metrics_2(self):
-        code = "600919.XSHG"
-        price = 7.02
-        volume = 300
-
-        _ = await post(
-            "buy",
-            self.token,
-            {
-                "security": code,
-                "price": price,
-                "volume": volume,
-                "order_time": "2022-3-1 10:35:00",
-            },
-        )
-
-        await post(
-            "sell",
-            self.token,
-            {
-                "security": code,
-                "price": 6.83,
-                "volume": volume,
-                "order_time": "2022-3-3 09:31:00",
-            },
-        )
-
-        metrics = await get("metrics", self.token, start="2022-3-1", end="2022-3-3")
-        print(metrics)
+        self.assertEqual(300, response[0]["filled"])

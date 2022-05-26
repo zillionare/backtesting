@@ -1,12 +1,14 @@
 import logging
+import pickle
+from functools import wraps
 
 import arrow
 from omicron import math_round
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import AccountError, GenericErrCode
-from backtest.common.helper import jsonify, make_response, protected, protected_admin
+from backtest.common.errors import AccountError, EntrustError
+from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
 from backtest.trade.types import position_dtype
 
@@ -19,35 +21,6 @@ async def status(request):
     return response.json({"status": "ok", "listen": request.url})
 
 
-@bp.route("accounts", methods=["POST"])
-@protected_admin
-async def create_account(request):
-    """创建一个模拟盘账户"""
-    params = request.json or {}
-
-    name = params["name"]
-    token = params["token"]
-    commission = params["commission"]
-    capital = params["capital"]
-
-    if any([name is None, capital is None, token is None, commission is None]):
-        msg = f"必须传入name: {name}, capital: {capital}, token: {token}, commission: {commission}"
-
-        return response.text(f"Bad parameter: {msg}", status=400)
-
-    accounts = request.app.ctx.accounts
-
-    try:
-        result = accounts.create_account(name, token, capital, commission)
-        start = result["account_start_date"]
-        if start is not None:
-            result["account_start_date"] = arrow.get(start).format("YYYY-MM-DD")
-    except AccountError as e:
-        return response.text(e.message, status=400)
-
-    return response.json(make_response(GenericErrCode.OK, data=result))
-
-
 @bp.route("start_backtest", methods=["POST"])
 async def start_backtest(request):
     params = request.json or {}
@@ -57,19 +30,23 @@ async def start_backtest(request):
         token = params["token"]
         start = arrow.get(params["start"]).date()
         end = arrow.get(params["end"]).date()
-        capital = params["capital"]
+        principal = params["principal"]
         commission = params["commission"]
-    except Exception:
-        return response.text("Bad parameter: name, version, start, end", status=400)
+    except KeyError as e:
+        logger.warning(f"parameter {e} is required")
+        return response.text(f"parameter {e} is required", status=499)
+    except Exception as e:
+        logger.exception(e)
+        return response.text(
+            "parameter error: name, token, start, end, principal, commission",
+            status=499,
+        )
 
     accounts = request.app.ctx.accounts
-    try:
-        result = accounts.create_account(
-            name, token, capital, commission, start=start, end=end
-        )
-        return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
-    except AccountError as e:
-        return response.text(e.message, status=400)
+    result = accounts.create_account(
+        name, token, principal, commission, start=start, end=end
+    )
+    return response.json(jsonify(result))
 
 
 @bp.route("accounts", methods=["GET"])
@@ -78,14 +55,9 @@ async def list_accounts(request):
     mode = request.args.get("mode", "all")
 
     accounts = request.app.ctx.accounts
-
     result = accounts.list_accounts(mode)
-    for account in result:
-        date = account["account_start_date"]
-        if date is not None:
-            account["account_start_date"] = arrow.get(date).format("YYYY-MM-DD")
 
-    return response.json(make_response(GenericErrCode.OK, data=result))
+    return response.json(jsonify(result))
 
 
 @bp.route("buy", methods=["POST"])
@@ -99,6 +71,18 @@ async def buy(request):
             - price: 买入价格,如果为None，则意味着以市价买入
             - volume: 买入数量
             - order_time: 下单时间
+
+    Returns:
+        Response: 买入结果, 字典，包含以下字段：
+
+            - tid: str, 交易id
+            - eid: str, 委托id
+            - security: str, 证券代码
+            - order_side: str, 买入/卖出
+            - price: float, 成交均价
+            - filled: float, 成交数量
+            - time: str, 下单时间
+            - trade_fees: float, 手续费
     """
     params = request.json or {}
 
@@ -107,12 +91,8 @@ async def buy(request):
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    try:
-        result = await request.ctx.broker.buy(security, price, volume, order_time)
-        return response.json(jsonify(result))
-    except Exception as e:
-        logger.exception(e)
-        return response.text(str(e), status=500)
+    result = await request.ctx.broker.buy(security, price, volume, order_time)
+    return response.json(jsonify(result))
 
 
 @bp.route("market_buy", methods=["POST"])
@@ -125,6 +105,8 @@ async def market_buy(request):
             security : 证券代码
             volume: 买入数量
             order_time: 下单时间
+    Returns:
+        买入结果, 请参考[backtest.web.interfaces.buy][]
     """
     params = request.json or {}
 
@@ -132,17 +114,26 @@ async def market_buy(request):
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    try:
-        result = await request.ctx.broker.buy(security, None, volume, order_time)
-        return response.json(jsonify(result))
-    except Exception as e:
-        logger.exception(e)
-        return response.text(str(e), status=500)
+    result = await request.ctx.broker.buy(security, None, volume, order_time)
+    return response.json(jsonify(result))
 
 
 @bp.route("sell", methods=["POST"])
 @protected
 async def sell(request):
+    """卖出证券
+
+    Args:
+        request: 参数以json方式传入， 包含：
+
+            - security : 证券代码
+            - price: 卖出价格,如果为None，则意味着以市价卖出
+            - volume: 卖出数量
+            - order_time: 下单时间
+
+    Returns:
+        Response: 参考[backtest.web.interfaces.buy][]
+    """
     params = request.json or {}
 
     security = params["security"]
@@ -150,17 +141,25 @@ async def sell(request):
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    try:
-        result = await request.ctx.broker.sell(security, price, volume, order_time)
-        return response.json(jsonify(result))
-    except Exception as e:
-        logger.exception(e)
-        return response.text(str(e), status=500)
+    result = await request.ctx.broker.sell(security, price, volume, order_time)
+    return response.json(jsonify(result))
 
 
 @bp.route("sell_percent", methods=["POST"])
 @protected
 async def sell_percent(request):
+    """卖出证券
+
+    Args:
+        request: 参数以json方式传入， 包含：
+            - security : 证券代码
+            - percent: 卖出比例
+            - order_time: 下单时间
+            - price: 卖出价格,如果为None，则意味着以市价卖出
+
+    Returns:
+        Response: 参考[backtest.web.interfaces.buy][]
+    """
     params = request.json or {}
 
     security = params["security"]
@@ -168,41 +167,54 @@ async def sell_percent(request):
     percent = params["percent"]
     order_time = arrow.get(params["order_time"]).naive
 
-    try:
-        assert 0 < percent <= 1.0, "percent must be between 0 and 1.0"
-        broker: Broker = request.ctx.broker
-        position = broker.get_position(order_time.date())
-        sellable = position[position["security"] == security][0]["sellable"]
+    assert 0 < percent <= 1.0, "percent must be between 0 and 1.0"
+    broker: Broker = request.ctx.broker
+    position = broker.get_position(order_time.date())
+    sellable = position[position["security"] == security][0]["sellable"]
 
-        volume = math_round(sellable * percent / 100, 0) * 100
+    volume = math_round(sellable * percent / 100, 0) * 100
 
-        result = await request.ctx.broker.sell(security, price, volume, order_time)
-        return response.json(jsonify(result))
-    except Exception as e:
-        logger.exception(e)
-        return response.text(str(e), status=500)
+    result = await request.ctx.broker.sell(security, price, volume, order_time)
+    return response.json(jsonify(result))
 
 
 @bp.route("market_sell", methods=["POST"])
 @protected
 async def market_sell(request):
+    """以市价卖出证券
+
+    Args:
+        request : 以json方式传入，包含以下字段
+
+            - security : 证券代码
+            - volume: 卖出数量
+            - order_time: 下单时间
+
+    Returns:
+        Response: 参考[backtest.web.interfaces.buy][]
+    """
     params = request.json or {}
 
     security = params["security"]
     volume = params["volume"]
     order_time = arrow.get(params["order_time"]).naive
 
-    try:
-        result = await request.ctx.broker.sell(security, None, volume, order_time)
-        return response.json(jsonify(result))
-    except Exception as e:
-        logger.exception(e)
-        return response.text(str(e), status=500)
+    result = await request.ctx.broker.sell(security, None, volume, order_time)
+    return response.json(jsonify(result))
 
 
 @bp.route("positions", methods=["GET"])
 @protected
 async def positions(request):
+    """获取持仓信息
+
+    Args:
+        request: 以args方式传入，包含以下字段
+            - date: 日期，格式为YYYY-MM-DD,待获取持仓信息的日期
+
+    Returns:
+        Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为`position_dtype`
+    """
     date = request.args.get("date")
 
     if date is None:
@@ -211,80 +223,51 @@ async def positions(request):
         date = arrow.get(date).date()
         position = request.ctx.broker.get_position(date)
 
-    result = [{k: row[k] for k in position.dtype.names} for row in position]
-
-    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
+    return response.raw(pickle.dumps(position))
 
 
 @bp.route("info", methods=["GET"])
 @protected
 async def info(request):
+    """获取账户信息
+
+    Returns:
+
+        Response: 结果以binary方式返回。结果为一个dict，其中包含以下字段：
+
+            - name: str, 账户名
+            - principal: float, 初始资金
+            - assets: float, 当前资产
+            - start: datetime.date, 账户创建时间
+            - last_trade: datetime.date, 最后一笔交易日期
+            - available: float, 可用资金
+            - market_value: 股票市值
+            - pnl: 盈亏(绝对值)
+            - ppnl: 盈亏(百分比)，即pnl/principal
+            - positions: 当前持仓，dtype为position_dtype的numpy structured array
+
+    """
     result = await request.ctx.broker.info()
-
-    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
-
-
-@bp.route("returns", methods=["GET"])
-@protected
-async def get_returns(request):
-    date = request.args.get("date")
-    result = await request.ctx.broker.get_returns(date)
-
-    return response.json(make_response(GenericErrCode.OK, data=jsonify(result)))
-
-
-@bp.route("available_money", methods=["GET"])
-@protected
-async def available_money(request):
-    cash = request.ctx.broker.cash
-
-    return response.json(make_response(GenericErrCode.OK, data=cash))
-
-
-@bp.route("available_shares", methods=["GET"])
-@protected
-async def available_shares(request):
-    code = request.args.get("code")
-
-    broker = request.ctx.broker
-    shares = {item["security"]: item["sellable"] for item in broker.position}
-
-    if code is None:
-        return response.json(make_response(GenericErrCode.OK, data=shares))
-    else:
-        return response.json(make_response(GenericErrCode.OK, data=shares.get(code, 0)))
-
-
-@bp.route("balance", methods=["GET"])
-@protected
-async def balance(request):
-    broker = request.ctx.broker
-
-    account = broker.account_name
-    pnl = broker.assets - broker.capital
-    cash = broker.cash
-    market_value = broker.assets - cash
-    total = broker.assets
-    ppnl = pnl / broker.capital
-
-    return response.json(
-        make_response(
-            GenericErrCode.OK,
-            data={
-                "account": account,
-                "pnl": pnl,
-                "available": cash,
-                "market_value": market_value,
-                "total": total,
-                "ppnl": ppnl,
-            },
-        )
-    )
+    return response.raw(pickle.dumps(result))
 
 
 @bp.route("metrics", methods=["GET"])
 @protected
 async def metrics(request):
+    """获取回测的评估指标信息
+
+    Args:
+        request : 以args方式传入，包含以下字段
+
+            - start: 开始时间，格式为YYYY-MM-DD
+            - end: 结束时间，格式为YYYY-MM-DD
+            - baseline: str, 用来做对比的证券代码，默认为空，即不做对比
+
+    Returns:
+
+        Response: 结果以binary方式返回,参考[backtest.trade.broker.Broker.metrics][]
+
+    """
     start = request.args.get("start")
     end = request.args.get("end")
     baseline = request.args.get("baseline")
@@ -296,13 +279,23 @@ async def metrics(request):
         end = arrow.get(end).date()
 
     metrics = await request.ctx.broker.metrics(start, end, baseline)
-
-    return response.json(make_response(GenericErrCode.OK, data=jsonify(metrics)))
+    return response.raw(pickle.dumps(metrics))
 
 
 @bp.route("bills", methods=["GET"])
 @protected
 async def bills(request):
+    """获取交易记录
+
+    Returns:
+        Response: 以binary方式返回。结果为一个字典，包括以下字段：
+
+            - tx: 配对的交易记录
+            - trades: 成交记录
+            - positions: 持仓记录
+            - assets: 每日市值
+
+    """
     results = {}
 
     broker: Broker = request.ctx.broker
@@ -315,15 +308,26 @@ async def bills(request):
 
     await broker.recalc_assets()
     results["assets"] = broker._assets
-
-    return response.json(make_response(GenericErrCode.OK, data=jsonify(results)))
+    return response.json(jsonify(results))
 
 
 @bp.route("accounts", methods=["DELETE"])
-@protected_admin
+@protected
 async def delete_accounts(request):
+    """删除账户
+
+    当提供了账户名`name`和token（通过headers)时，如果name与token能够匹配，则删除`name`账户。
+    Args:
+        name: 待删除的账户名。如果为空，且提供了admin token，则删除全部账户。
+    """
     account_to_delete = request.args.get("name", None)
     accounts = request.app.ctx.accounts
 
-    n_accounts = accounts.delete_accounts(account_to_delete)
-    return response.json(make_response(GenericErrCode.OK, data=n_accounts))
+    if account_to_delete is None:
+        if request.ctx.broker.account_name == "admin":
+            accounts.delete_accounts()
+        else:
+            return response.text("admin account required", status=403)
+
+    if account_to_delete == request.ctx.broker.account_name:
+        accounts.delete_accounts(account_to_delete)

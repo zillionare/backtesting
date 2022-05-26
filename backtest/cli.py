@@ -36,7 +36,7 @@ def find_backtest_process():
         cmd = " ".join(p.cmdline())
         if "backtest.app start" in cmd:
             matched = re.search(r"--port=(\d+)", cmd)
-            if len(matched.groups()):
+            if matched and len(matched.groups()):
                 return p.pid, int(matched.groups()[0])
 
             return p.pid, None

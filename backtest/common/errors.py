@@ -1,14 +1,6 @@
 from enum import IntEnum
 
 
-class GenericErrCode(IntEnum):
-    OK = 0
-    UNKNOWN = -1
-
-    def __str__(self):
-        return {GenericErrCode.OK: "成功", GenericErrCode.UNKNOWN: "失败"}.get(self)
-
-
 class Error(Exception):
     """错误基类"""
 
@@ -26,13 +18,34 @@ class BadParameterError(Error):
     pass
 
 
-class NoDataForMatchError(Error):
-    """缺少撮合数据"""
-
-    pass
-
-
 class AccountError(Error):
     """账户冲突，或者已冻结"""
 
     pass
+
+
+class EntrustError(Error):
+    """交易过程中发生的异常"""
+
+    GENERIC_ERROR = -1
+    NO_CASH = -2
+    REACH_BUY_LIMIT = -3
+    REACH_SELL_LIMIT = -4
+    NO_POSITION = -5
+    PRICE_NOT_MEET = -6
+    NODATA_FOR_MATCH = -7
+
+    def __init__(self, status_code: int, **kwargs):
+        self.status_code = status_code
+        self.message = self.__template__().format(**kwargs)
+
+    def __template__(self):
+        return {
+            EntrustError.GENERIC_ERROR: "委托失败{security}, {time}",
+            EntrustError.NO_CASH: "账户{account}资金不足, 需要{required}, 当前{available}",
+            EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入{security}, {time}",
+            EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出{security}, {time}",
+            EntrustError.NO_POSITION: "{security}在{time}期间没有持仓",
+            EntrustError.PRICE_NOT_MEET: "{security}现价未达到委托价:{entrust}",
+            EntrustError.NODATA_FOR_MATCH: "没有匹配到{security}在{time}的成交数据",
+        }.get(self.status_code)

@@ -7,7 +7,11 @@ nav:
   - home: index.md
   - installation: installation.md
   - usage: usage.md
-  - modules: api.md
+  - api:
+    - api/common.md
+    - api/feed.md
+    - api/trade.md
+    - api/web.md
   - contributing: contributing.md
   - authors: authors.md
   - history: history.md
@@ -53,6 +57,13 @@ plugins:
         - backtest
   - search
   - autorefs
+  - mike:
+      # these fields are all optional; the defaults are as below...
+      version_selector: true   # set to false to leave out the version selector
+      css_dir: css             # the directory to put the version selector's CSS
+      javascript_dir: js       # the directory to put the version selector's JS
+      canonical_version: null  # the version for <link rel="canonical">; `null`
+                               # uses the version specified via `mike deploy`
 extra:
   social:
     - icon: fontawesome/brands/twitter

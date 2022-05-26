@@ -54,29 +54,6 @@ class Entrust:
         }
 
 
-class EntrustError(IntEnum):
-    SUCCESS = 0
-    PARTIAL_SUCCESS = 1
-    GENERIC_ERROR = -1
-    NO_CASH = -2
-    REACH_BUY_LIMIT = -3
-    REACH_SELL_LIMIT = -4
-    NO_POSITION = -5
-    PRICE_NOT_MEET = -6
-
-    def __str__(self):
-        return {
-            EntrustError.SUCCESS: "成功委托",
-            EntrustError.PARTIAL_SUCCESS: "部成",
-            EntrustError.GENERIC_ERROR: "委托失败",
-            EntrustError.NO_CASH: "资金不足",
-            EntrustError.REACH_BUY_LIMIT: "不能在涨停板上买入",
-            EntrustError.REACH_SELL_LIMIT: "不能在跌停板上卖出",
-            EntrustError.NO_POSITION: "没有持仓",
-            EntrustError.PRICE_NOT_MEET: "现价未达到委托价",
-        }.get(self)
-
-
 cash_dtype = np.dtype([("date", "O"), ("cash", "<f8")])
 
 daily_position_dtype = np.dtype(
