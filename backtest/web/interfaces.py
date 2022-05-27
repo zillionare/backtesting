@@ -23,6 +23,30 @@ async def status(request):
 
 @bp.route("start_backtest", methods=["POST"])
 async def start_backtest(request):
+    """启动回测
+
+    启动回测时，将为接下来的回测创建一个新的账户。
+
+    Args:
+        request Request: 包含以下字段的请求对象
+
+            - name, 账户名称
+            - token,账户token
+            - principal,账户初始资金
+            - commission,账户手续费率
+            - start,回测开始日期，格式为YYYY-MM-DD
+            - end,回测结束日期，格式为YYYY-MM-DD
+
+    Returns:
+
+        json: 包含以下字段的json对象
+
+            - account_name, str
+            - token, str
+            - account_start_date, str
+            - principal, float
+
+    """
     params = request.json or {}
 
     try:
@@ -66,7 +90,8 @@ async def buy(request):
     """买入
 
     Args:
-        request : 参数以json方式传入， 包含：
+        request Request: 参数以json方式传入， 包含：
+
             - security : 证券代码
             - price: 买入价格,如果为None，则意味着以市价买入
             - volume: 买入数量
@@ -83,6 +108,7 @@ async def buy(request):
             - filled: float, 成交数量
             - time: str, 下单时间
             - trade_fees: float, 手续费
+
     """
     params = request.json or {}
 
@@ -209,11 +235,13 @@ async def positions(request):
     """获取持仓信息
 
     Args:
-        request: 以args方式传入，包含以下字段
+        request Request:以args方式传入，包含以下字段:
+
             - date: 日期，格式为YYYY-MM-DD,待获取持仓信息的日期
 
     Returns:
         Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为`position_dtype`
+
     """
     date = request.args.get("date")
 
@@ -316,7 +344,7 @@ async def bills(request):
 async def delete_accounts(request):
     """删除账户
 
-    当提供了账户名`name`和token（通过headers)时，如果name与token能够匹配，则删除`name`账户。
+    当提供了账户名`name`和token（通过headers传递)时，如果name与token能够匹配，则删除`name`账户。
     Args:
         name: 待删除的账户名。如果为空，且提供了admin token，则删除全部账户。
     """

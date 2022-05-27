@@ -7,30 +7,34 @@ docker run -d --name bt -v /host/config:/config -e PORT=3180 -p 3180:3180 backte
 
 如果不指定PORT，则默认为7080，此时端口映射也应该相应修改为 -p 7080:7080。
 
+!!!info
+    这里-e PORT 3180的作用是，让容器内部的backtest服务器监听在3180端口，而-p 3180:3180则是让容器的3180端口映射到本地的3180端口，从而使得外部程序可以访问容器里的服务。
+
 在/host/config目录（这是一个host主机上的目录），创建一个名为defaults.yaml的文件，其内容如下：
 
 ```yaml
 redis:
-  dsn: redis://redis.z:56379
+  dsn: redis://redis:6379
 postgres:
-  dsn: postgres://zillionare:123456@postgres.z:55432/zillionare
+  dsn: postgres://zillionare:123456@postgres:5432/zillionare
   enabled: true
 influxdb:
-  url: http://influx.z:58086
+  url: http://influxdb:8086
   token: zillionare-influxdb-read-only
   org: zillionare
   bucket_name: zillionare
   enable_compress: true
 
 server:
-  path: /backtest/api/trade/v0.2/
-accounts:
-  - name: "aaron"
-    cash: 1_000_000
-    commission: 0.0001
-    token: "abcd"
+  path: /backtest/api/trade/v0.3/
+
+auth:
+  admin: bGZJGEZ
 ```
 
+这里的`/backtest/api/trade/v0.3/`是容器里的服务器的响应路径。如果您的服务器地址为192.168.1.1，而在前面的端口映射设置为3180，则您的[traderclient](https://zillionare.github.io/traderclient)应该指向`http://192.168.1.1:3180/backtest/api/trade/v0.3/`。
+
+注意backtest并不支持https。如果https对您而言比较重要，请在backtest server之前增加nginx一类的服务来实现。
 # 本地安装运行
 
 To install zillionare-backtest, run this command in your

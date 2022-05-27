@@ -4,11 +4,7 @@ from omicron.models.timeframe import TimeFrame as tf
 
 
 class Transaction:
-    """包括了买和卖的一次完整交易
-
-    Returns:
-        _description_
-    """
+    """包括了买和卖的一次完整交易"""
 
     def __init__(
         self,

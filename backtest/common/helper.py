@@ -127,8 +127,20 @@ def protected_admin(wrapped):
 
 
 def jsonify(obj) -> dict:
-    """convert object to jsonable dict
+    """将对象`obj`转换成为可以通过json.dumps序列化的字典
 
+    本方法可以将str, int, float, bool, datetime.date, datetime.datetime, 或者提供了isoformat方法的其它时间类型， 提供了to_dict方法的对象类型（比如自定义对象），提供了tolist或者__iter__方法的序列对象（比如numpy数组），或者提供了__dict__方法的对象，以及上述对象的复合对象，都可以被正确地转换。
+
+    转换中依照以下顺序进行：
+
+    1. 简单类型，如str, int, float, bool
+    2. 提供了to_dict的自定义类型
+    3. 如果是numpy数组，优先按tolist方法进行转换
+    4. 如果是提供了isoformat的时间类型，优先转换
+    5. 如果对象是dict, 按dict进行转换
+    6. 如果对象提供了__iter__方法，按序列进行转换
+    7. 如果对象提供了__dict__方法，按dict进行转换
+    8. 抛出异常
     Args:
         obj : object to convert
 

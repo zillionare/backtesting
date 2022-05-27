@@ -1,7 +1,5 @@
 backtest还提供了一种开发模式。这种模式下，backtest服务器将自带少量数据，方便与[trader-client](https://zillionare.github.io/trader-client/)进行联调。
 ```console
-export TZ=Asia/Shanghai
-
 echo "初始化redis容器"
 sudo docker run -d --name tox-redis -p 6379:6379 redis
 
@@ -19,5 +17,22 @@ docker network connect --alias influxdb tox-bt-net tox-influxdb
 docker network connect --alias bt tox-bt-net tox-bt
 ```
 
-提供的数据包含了天域生态、海联金汇到3月1日到3月14日止的日线和分钟线，用以撮合成交和提供收盘价数据（未复权，带复权因子）。
-limits.pkl包含了天域生态、海联金汇同期的涨跌停价数据，未复权。
+提供的数据包含了天域生态、海联金汇到3月1日到3月14日止的日线和分钟线和涨跌停价格，用以撮合成交和提供收盘价数据（未复权，带复权因子）。
+
+注意这里构建backtest容器的参数与正式运行略有不同，即多了一个`-e MODE=TEST`参数。通过这个参数，容器在启动时，将执行以下脚本：
+```console
+if [ $MODE = "TEST" ]; then
+    if [ ! -f /root/.zillionare/backtest/config/defaults.yaml ]; then
+        echo "in $MODE mode, config file not found, exit"
+        echo `ls /root/.zillionare/backtest/config`
+        exit
+    fi
+
+    if [ ! -f /root/.zillionare/backtest/init_db.py ]; then
+        echo "init_db.py not found, exit"
+        exit
+    fi
+    export __cfg4py_server_role__=TEST;python3 ~/.zillionare/backtest/init_db.py
+    export __cfg4py_server_role__=TEST;python3 -m backtest.app start $PORT
+fi
+```

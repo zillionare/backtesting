@@ -1,7 +1,7 @@
 import datetime
 from abc import ABCMeta, abstractmethod
 from calendar import c
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 
@@ -17,7 +17,7 @@ class BaseFeed(metaclass=ABCMeta):
     @classmethod
     async def create_instance(cls, interface="zillionare", **kwargs):
         """
-        创建实例
+        创建feed实例。当前仅支持zillionare接口。该接口要求使用[zillionare-omicron](https://zillionare.github.io/omicron/)来提供数据。
         """
         from backtest.feed.zillionarefeed import ZillionareFeed
 
@@ -29,11 +29,12 @@ class BaseFeed(metaclass=ABCMeta):
             raise TypeError(f"{interface} is not supported")
 
     @abstractmethod
-    async def get_bars_for_match(self, security: str, start: datetime.datetime) -> list:
-        """获取从`start`之后起当天所有的分钟线，用以撮合
+    async def get_bars_for_match(
+        self, security: str, start: datetime.datetime
+    ) -> np.ndarray:
+        """获取从`start`之后起当天所有的行情数据，用以撮合
 
-        如果feed只支持日线，也是允许的。
-
+        这里没有要求指定行情数据的时间帧类型，理论上无论从tick级到日线级，backtest都能支持。
         Args:
             security : 证券代码
             start : 起始时间
@@ -59,6 +60,16 @@ class BaseFeed(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_trade_price_limits(self, sec: str, date: datetime.date) -> np.ndarray:
-        """获取证券的交易价格限制"""
+    async def get_trade_price_limits(self, sec: str, date: datetime.date) -> Tuple:
+        """获取证券的交易价格限制
+
+        获取证券`sec`在`date`日期的交易价格限制。
+
+        Args:
+            sec : 证券代码
+            date : 日期
+
+        Returns:
+            交易价格限制，元组，(日期，涨停价，跌停价)
+        """
         raise NotImplementedError

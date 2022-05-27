@@ -1,6 +1,6 @@
 site_name: zillionare-backtest
 # site_url: http://www.jieyu.ai
-repo_url: https://github.com/zillionare/backtest
+repo_url: https://github.com/zillionare/backtesting
 repo_name: backtest
 #strict: true
 nav:
@@ -12,6 +12,7 @@ nav:
     - api/feed.md
     - api/trade.md
     - api/web.md
+  - developer: developer.md
   - contributing: contributing.md
   - authors: authors.md
   - history: history.md

@@ -24,7 +24,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 # Version
-backtest version: 
+backtest version:
 
 
 # Additional context

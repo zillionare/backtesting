@@ -1,3 +1,6 @@
+"""
+Broker是一个交易代理。每一个交易代理对应一个账户，记录了该账户下的交易记录、每日持仓记录和每日市值记录等数据，并提供交易撮合的具体实现。
+"""
 import asyncio
 import datetime
 import logging
@@ -99,7 +102,7 @@ class Broker:
         self._lock = asyncio.Lock()
 
     def __getstate__(self):
-        """self._lock is not pickable"""
+        # self._lock is not pickable
         state = self.__dict__.copy()
         del state["_lock"]
 
@@ -178,7 +181,7 @@ class Broker:
 
         return self._unclosed_trades.get(dt)
 
-    def get_position(self, dt: datetime.date, dtype=position_dtype) -> List:
+    def get_position(self, dt: datetime.date, dtype=position_dtype) -> np.ndarray:
         """获取`dt`日持仓
 
         如果传入的`dt`大于持仓数据的最后一天，将返回最后一天的持仓数据,并且所有持仓均为可售状态
@@ -210,7 +213,7 @@ class Broker:
         return result[list(dtype.names)].astype(dtype)
 
     async def recalc_assets(self):
-        """重新计算资产"""
+        # 重新计算资产
         if self.mode == "bt":
             end = self.bt_stop
             start = self.bt_start
@@ -317,10 +320,10 @@ class Broker:
         当日总资产 = 当日可用资金 + 持仓市值
 
         Args:
-            date : 查询哪一天的资产
+            date: 查询哪一天的资产
 
         Returns:
-            返回总资产
+            返回某一日的总资产
 
         """
         if self._assets.size == 0:
@@ -430,18 +433,7 @@ class Broker:
             logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
             raise AccountError(f"委托时间超过回测结束时间，{self.bt_stop} -> {bid_time}")
 
-    async def buy(self, *args, **kwargs):
-        """同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化"""
-        async with self.lock:
-            return await self._buy(*args, **kwargs)
-
-    async def _buy(
-        self,
-        security: str,
-        bid_price: float,
-        bid_shares: int,
-        bid_time: datetime.datetime,
-    ) -> Dict:
+    async def buy(self, *args, **kwargs) -> Trade:
         """买入委托
 
         买入以尽可能实现委托为目标。如果可用资金不足，但能买入部分股票，则部分买入。
@@ -456,14 +448,19 @@ class Broker:
             request_id: 请求ID
 
         Returns:
-            {
-                "status": 0 # 0表示成功，否则为错误码
-                "msg": "blah"
-                "data": {
-
-                }
-            }
+            [Trade][backtest.trade.trade.Trade]对象
         """
+        # 同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化
+        async with self.lock:
+            return await self._buy(*args, **kwargs)
+
+    async def _buy(
+        self,
+        security: str,
+        bid_price: float,
+        bid_shares: int,
+        bid_time: datetime.datetime,
+    ) -> Dict:
         await self._before_trade(bid_time)
 
         feed = get_app_context().feed
@@ -868,17 +865,6 @@ class Broker:
         return exit_trades
 
     async def sell(self, *args, **kwargs):
-        """同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化"""
-        async with self.lock:
-            return await self._sell(*args, **kwargs)
-
-    async def _sell(
-        self,
-        security: str,
-        bid_price: float,
-        bid_shares: int,
-        bid_time: datetime.datetime,
-    ) -> List[Trade]:
         """卖出委托
 
         Args:
@@ -889,7 +875,19 @@ class Broker:
 
         Returns:
             成交记录列表
+
         """
+        # 同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化
+        async with self.lock:
+            return await self._sell(*args, **kwargs)
+
+    async def _sell(
+        self,
+        security: str,
+        bid_price: float,
+        bid_shares: int,
+        bid_time: datetime.datetime,
+    ) -> List[Trade]:
         await self._before_trade(bid_time)
 
         feed = get_app_context().feed
@@ -1063,28 +1061,31 @@ class Broker:
             baseline: 参考标的
 
         Returns:
-            - start 回测起始时间
-            - end   回测结束时间
-            - window 资产暴露时间
-            - total_tx 发生的配对交易次数
-            - total_profit 总盈亏
-            - total_profit_rate 总盈亏率
-            - win_rate 胜率
-            - mean_return 每笔配对交易平均回报率
-            - sharpe    夏普比率
-            - max_drawdown 最大回撤
-            - sortino
-            - calmar
-            - annual_return 年化收益率
-            - volatility 波动率
-            - baseline: dict
-                - win_rate
-                - sharpe
-                - max_drawdown
+            Dict: 指标字典
+
+                - start 回测起始时间
+                - end   回测结束时间
+                - window 资产暴露时间
+                - total_tx 发生的配对交易次数
+                - total_profit 总盈亏
+                - total_profit_rate 总盈亏率
+                - win_rate 胜率
+                - mean_return 每笔配对交易平均回报率
+                - sharpe    夏普比率
+                - max_drawdown 最大回撤
                 - sortino
-                - annual_return
-                - total_profit_rate
-                - volatility
+                - calmar
+                - annual_return 年化收益率
+                - volatility 波动率
+                - baseline: dict
+                    - win_rate
+                    - sharpe
+                    - max_drawdown
+                    - sortino
+                    - annual_return
+                    - total_profit_rate
+                    - volatility
+
         """
         try:
             rf = cfg.metrics.risk_free_rate / cfg.metrics.annual_days

@@ -1,8 +1,4 @@
-# 基本原理
 
-与普通的回测框架不同，zillionare-backtest通过将自己仿真成为交易柜台来进行回测。backtest使用C/S模式。策略端通过调用client sdk，将交易指令发送给backtest server。bactest server完成撮合、仓位和市值更新等操作，并计算收益率。
-
-要使用backtest服务器，必须配置撮合数据源。zillionare-backtest支持两种数据源，一种是zillionare feed,一种是文件数据源。要得到最接近实盘的效果，最好提供分钟级别的数据。
 
 ## 客户端安装和使用
 
