@@ -16,9 +16,8 @@ if [ $MODE = "TEST" ]; then
         echo "init_db.py not found, exit"
         exit
     fi
-    export __cfg4py_server_role__="TEST"
-    python3 ~/.zillionare/backtest/init_db.py
-    python3 -m backtest.app start $PORT
+    export __cfg4py_server_role__=TEST;python3 ~/.zillionare/backtest/init_db.py
+    export __cfg4py_server_role__=TEST;python3 -m backtest.app start $PORT
 fi
 
 if [ ! -f /config/defaults.yaml ]; then
