@@ -7,6 +7,7 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
+from coretypes import bars_dtype
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
@@ -16,7 +17,13 @@ from backtest.config import get_config_dir
 from backtest.feed.zillionarefeed import ZillionareFeed
 from backtest.trade.broker import Broker
 from backtest.trade.trade import Trade
-from backtest.trade.types import E_BACKTEST, assets_dtype, cash_dtype, position_dtype
+from backtest.trade.types import (
+    E_BACKTEST,
+    EntrustSide,
+    assets_dtype,
+    cash_dtype,
+    position_dtype,
+)
 from tests import assert_deep_almost_equal, data_populate
 
 logger = logging.getLogger(__name__)

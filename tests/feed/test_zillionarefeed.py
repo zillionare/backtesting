@@ -25,14 +25,20 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         self.feed = await BaseFeed.create_instance()
         return super().setUp()
 
-    async def test_get_bars_for_match(self):
-        bars = await self.feed.get_bars_for_match(
+    async def test_get_price_for_match(self):
+        bars = await self.feed.get_price_for_match(
             "002537.XSHE", datetime.datetime(2022, 3, 14, 9, 35)
         )
 
         self.assertEqual(len(bars), 236)
         self.assertEqual(bars[0]["frame"], datetime.datetime(2022, 3, 14, 9, 35))
         self.assertEqual(bars[-1]["frame"], datetime.datetime(2022, 3, 14, 15))
+
+        bars = await self.feed.get_price_for_match(
+            "002537.XSHE", datetime.datetime(2022, 3, 14, 9, 31)
+        )
+        self.assertAlmostEqual(bars[0]["price"], 9.83, 2)
+        self.assertAlmostEqual(bars[0]["volume"], 12639700, 0)
 
     async def test_get_close_price(self):
         code = "002537.XSHE"

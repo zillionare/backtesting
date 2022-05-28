@@ -55,6 +55,8 @@ class Accounts:
     ):
         """创建新账户
 
+        一个账户由`name`和`token`的组合惟一确定。如果前述组合已经存在，则创建失败。
+
         Args:
             name (str): 账户/策略名称
             token (str): 账户token

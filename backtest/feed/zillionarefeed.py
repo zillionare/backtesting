@@ -9,6 +9,8 @@ from omicron.models.stock import Stock
 
 from backtest.feed.basefeed import BaseFeed
 
+from . import match_data_dtype
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,10 +21,17 @@ class ZillionareFeed(BaseFeed):
     async def init(self, *args, **kwargs):
         pass
 
-    async def get_bars_for_match(self, security: str, start: datetime.datetime) -> list:
+    async def get_price_for_match(
+        self, security: str, start: datetime.datetime
+    ) -> np.ndarray:
         end = datetime.datetime.combine(start.date(), datetime.time(15))
         bars = await Stock.get_bars(security, 240, FrameType.MIN1, end)
-        return bars[bars["frame"] >= start]
+        if start.hour * 60 + start.minute <= 571:  # 09:31
+            bars[0]["close"] = bars[0]["open"]
+
+        return bars[bars["frame"] >= start][["frame", "close", "volume"]].astype(
+            match_data_dtype
+        )
 
     async def get_close_price(
         self, secs: Union[str, List[str]], date: datetime.date

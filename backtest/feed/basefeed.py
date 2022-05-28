@@ -29,17 +29,18 @@ class BaseFeed(metaclass=ABCMeta):
             raise TypeError(f"{interface} is not supported")
 
     @abstractmethod
-    async def get_bars_for_match(
+    async def get_price_for_match(
         self, security: str, start: datetime.datetime
     ) -> np.ndarray:
         """获取从`start`之后起当天所有的行情数据，用以撮合
 
-        这里没有要求指定行情数据的时间帧类型，理论上无论从tick级到日线级，backtest都能支持。
+        这里没有要求指定行情数据的时间帧类型，理论上无论从tick级到日线级，backtest都能支持。返回的数据至少要包括`frame`、`price`、`volume`三列。
+
         Args:
             security : 证券代码
             start : 起始时间
         Returns:
-            a numpy array which dtype is `bars_dtype`
+            a numpy array which dtype is `match_data_dtype`
         """
         raise NotImplementedError
 

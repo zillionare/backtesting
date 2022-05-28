@@ -5,3 +5,4 @@ backtest server在进行撮合时，需要获取从下单时间起之后到当�
 backtest server本身提供了一个基于[zillionare-omicron](https://zillionare.github.io/omicron/)接口的data feed，该feeder基于分钟线数据提供撮合数据。
 
 """
+match_data_dtype = [("frame", "O"), ("price", "f4"), ("volume", "f4")]

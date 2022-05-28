@@ -10,8 +10,13 @@ pip install zillionare-trader-client
 使用示例：
 ```
 from traderclient import TraderClient
+import uuid
 
-client = TraderClient(url, account, token)
+url = 'http://localhost:8080/backtest/api/trade/v0.3/'
+account = "test"
+token = uuid.uuid4().hex
+
+client = TraderClient(url, account, token, is_backtest=True)
 client.buy(symbol, price, amount)
 ```
 详细使用请参考[客户端使用](https://zillionare-trader-client.readthedocs.io/）
@@ -21,10 +26,10 @@ client.buy(symbol, price, amount)
 服务器配置文件使用yaml格式。需要配置项主要有：
 
 ### server path
-缺省为/backtest/api/trade/v0.2/，可以通过修改以下配置项来修改服务器路径：
+缺省为/backtest/api/trade/v0.3/，可以通过修改以下配置项来修改服务器路径：
 ```
 server:
-    path: /backtest/api/trade/v0.2/
+    path: /backtest/api/trade/v0.3/
 ```
 
 ### 账户配置
