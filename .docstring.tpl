@@ -6,10 +6,10 @@
 {{#parametersExist}}
 Args:
 {{#args}}
-    {{var}} : {{descriptionPlaceholder}}
+    {{var}}: {{descriptionPlaceholder}}
 {{/args}}
 {{#kwargs}}
-    {{var}} : {{descriptionPlaceholder}}.
+    {{var}}: {{descriptionPlaceholder}}.
 {{/kwargs}}
 {{/parametersExist}}
 
