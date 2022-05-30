@@ -1,3 +1,5 @@
+"""定义了在backtest中常用的异常类型及异常类型基类
+"""
 from enum import IntEnum
 
 

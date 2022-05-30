@@ -1,3 +1,5 @@
+# 测试模式
+
 backtest还提供了一种开发模式。这种模式下，backtest服务器将自带少量数据，方便与[trader-client](https://zillionare.github.io/trader-client/)进行联调。
 ```console
 echo "初始化redis容器"
@@ -36,3 +38,9 @@ if [ $MODE = "TEST" ]; then
     export __cfg4py_server_role__=TEST;python3 -m backtest.app start $PORT
 fi
 ```
+
+# 排错
+
+backtest提供了两个对账日志文件， /var/log/backtest/entrust.log和/var/log/backtest/trade.log（缺省位置，可以配置文件中的entrust和trade两项中的filename)。其中trade.log包括了买卖成交记录。可以根据这个文件和tests/data/validation.xlsx配合来进行对账。
+
+注意两个文件的tsv文件。
