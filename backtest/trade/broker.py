@@ -368,7 +368,7 @@ class Broker:
 
         assets = cash + market_value
 
-        if date not in self._assets:
+        if date not in self._assets["date"]:
             self._assets = np.append(
                 self._assets, np.array([(date, assets)], dtype=assets_dtype)
             )
