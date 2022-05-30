@@ -1,4 +1,5 @@
 import datetime
+import os
 import unittest
 import uuid
 from unittest import mock
@@ -29,6 +30,12 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         cfg = cfg4py.get_instance()
         self.admin_token = cfg.auth.admin
+
+        try:
+            os.remove("/var/log/backtest/entrust.log")
+            os.remove("/var/log/backtest/trade.log")
+        except FileNotFoundError:
+            pass
 
         await data_populate()
 
@@ -245,7 +252,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             (9.57, 500, "2022-03-08 09:31:00"),
             (9.08, 500, "2022-03-09 09:31:00"),
             (9.1, 500, "2022-03-10 09:31:00"),
-            (9.65, 500, "2022-03-11 09:31:00"),
+            (9.65, 500, "2022-03-11 09:31:00"),  # 这一笔不会成交
             (9.65, 500, "2022-03-14 09:31:00"),
         ]:
             await post(
@@ -278,19 +285,19 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "start": datetime.date(2022, 3, 1),
             "end": datetime.date(2022, 3, 14),
             "window": 10,
-            "total_tx": 9,
-            "total_profit": -779.1568067073822,
-            "total_profit_rate": -0.0007791568067073822,
-            "win_rate": 0.4444444444444444,
-            "mean_return": -6.952228828114507e-05,
-            "sharpe": -1.7461,
-            "sortino": -2.51418,
-            "calmar": -3.9873290,
-            "max_drawdown": -0.004438,
-            "annual_return": -0.017698244,
-            "volatility": 0.02721410,
+            "total_tx": 8,
+            "total_profit": -343.13999999978114,
+            "total_profit_rate": -0.0003431399999997811,
+            "win_rate": 0.625,
+            "mean_return": -2.9972019661695835e-05,
+            "sharpe": -1.439194474227825,
+            "sortino": -2.1212244527176227,
+            "calmar": -1.8723514035186801,
+            "max_drawdown": -0.0041827334569883405,
+            "annual_return": -0.00783154685873666,
+            "volatility": 0.026093033031478072,
             "baseline": {
-                "code": hljh,
+                "code": "002537.XSHE",
                 "win_rate": 0.5555555555555556,
                 "sharpe": 0.6190437353475076,
                 "max_drawdown": -0.17059373779725692,
@@ -300,7 +307,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 "volatility": 1.1038380776228978,
             },
         }
-
         assert_deep_almost_equal(self, exp, actual, places=2)
 
     async def test_start_backtest(self):

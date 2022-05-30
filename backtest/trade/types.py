@@ -68,12 +68,7 @@ daily_position_dtype = np.dtype(
 
 # for return to client
 position_dtype = np.dtype(
-    [
-        ("security", "O"),
-        ("shares", "<f8"),
-        ("sellable", "<f8"),
-        ("price", "<f8"),
-    ]
+    [("security", "O"), ("shares", "<f8"), ("sellable", "<f8"), ("price", "<f8")]
 )
 
 

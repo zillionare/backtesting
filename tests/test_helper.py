@@ -41,11 +41,7 @@ class HelperTest(unittest.TestCase):
         )
 
         actual = tabulate_numpy_array(arr)
-        exp = [
-            ["a", "b", "c"],
-            [1, 2, 3],
-            [4, 5, 6],
-        ]
+        exp = [["a", "b", "c"], [1, 2, 3], [4, 5, 6]]
 
         exp = """╒═════╤═════╤═════╕
 │   a │   b │   c │

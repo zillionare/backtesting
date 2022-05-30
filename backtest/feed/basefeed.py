@@ -74,3 +74,19 @@ class BaseFeed(metaclass=ABCMeta):
             交易价格限制，元组，(日期，涨停价，跌停价)
         """
         raise NotImplementedError
+
+    @abstractmethod
+    async def calc_xr_xd(
+        self, sec: str, start: datetime.date, end: datetime.date, shares: int
+    ) -> float:
+        """计算证券`sec`在[start, end]期间发生的除权除息收益。
+
+        Args:
+            sec: 证券品种
+            start: 证券持有的起始日期
+            end: 证券持有的结束日期
+            shares: 证券持有的份数
+        Returns:
+            除权除息收益
+        """
+        raise NotImplementedError

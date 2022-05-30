@@ -255,3 +255,12 @@ async def data_populate():
     limits = df.to_records(index=False)
     limits.dtype.names = ["frame", "code", "high_limit", "low_limit"]
     await Stock.save_trade_price_limits(limits, False)
+
+
+def _index_of(array, date):
+    idx = np.argwhere(array["date"] <= date).ravel()
+    assert len(idx) <= 1
+    if len(idx) == 0:
+        return None
+    else:
+        return idx[0]

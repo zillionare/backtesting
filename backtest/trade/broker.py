@@ -41,6 +41,8 @@ from backtest.trade.types import (
 
 cfg = cfg4py.get_instance()
 logger = logging.getLogger(__name__)
+entrustlog = logging.getLogger("entrust")
+tradelog = logging.getLogger("trade")
 
 
 class Broker:
@@ -213,7 +215,7 @@ class Broker:
         return result[list(dtype.names)].astype(dtype)
 
     async def recalc_assets(self):
-        # 重新计算资产
+        # 重新计算资产。注意在某些操作中我们也会计算并缓存assets结果，但_assets表可能存在空洞或者不准确。
         if self.mode == "bt":
             end = self.bt_stop
             start = self.bt_start
@@ -336,6 +338,26 @@ class Broker:
         assets, *_ = await self._calc_assets(date)
         return assets
 
+    def _index_of(self, arr: np.ndarray, date: datetime.date) -> int:
+        """查找`arr`中其`date`字段等于`date`的索引
+
+            注意数组中`date`字段取值必须惟一。
+
+        Args:
+            arr: numpy array, 需要存在`date`字段
+            date: datetime.date, 查找的日期
+
+        Returns:
+            如果存在，返回索引，否则返回None
+        """
+        pos = np.argwhere(arr["date"] == date).ravel()
+
+        assert len(pos) <= 1, "date should be unique"
+        if len(pos) == 0:
+            return None
+
+        return pos[0]
+
     async def _calc_assets(self, date: datetime.date) -> Tuple[float]:
         """计算某日的总资产，并缓存
 
@@ -368,12 +390,14 @@ class Broker:
 
         assets = cash + market_value
 
-        if date not in self._assets["date"]:
+        i = self._index_of(self._assets, date)
+        if i is None:
             self._assets = np.append(
                 self._assets, np.array([(date, assets)], dtype=assets_dtype)
             )
         else:
-            self._assets[self._assets["date"] == date]["assets"] = assets
+            # don't use self._assets[self._assets["date"] == date], this always return copy
+            self._assets[i]["assets"] = assets
 
         return assets, cash, market_value
 
@@ -461,6 +485,9 @@ class Broker:
         bid_shares: int,
         bid_time: datetime.datetime,
     ) -> Dict:
+        entrustlog.info(
+            f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.BUY}"
+        )
         await self._before_trade(bid_time)
 
         feed = get_app_context().feed
@@ -492,7 +519,7 @@ class Broker:
         bid_price = bid_price or buy_limit_price
 
         # 获取用以撮合的数据
-        bars = await feed.get_bars_for_match(security, bid_time)
+        bars = await feed.get_price_for_match(security, bid_time)
         if bars.size == 0:
             logger.warning("failed to match %s, no data at %s", security, bid_time)
             raise EntrustError(
@@ -536,7 +563,7 @@ class Broker:
         Returns:
             成交均价、可埋单股数和最后成交时间
         """
-        c, v = bid_queue["close"], bid_queue["volume"]
+        c, v = bid_queue["price"], bid_queue["volume"]
 
         cum_v = np.cumsum(v)
 
@@ -604,12 +631,12 @@ class Broker:
             成交记录
         """
         money = price * filled
-        fee = money * self.commission
+        fee = math_round(money * self.commission, 2)
 
         trade = Trade(en.eid, en.security, price, filled, fee, en.side, close_time)
         self.trades[trade.tid] = trade
         self._update_unclosed_trades(trade.tid, close_time.date())
-        self._update_position(trade, close_time.date())
+        await self._update_positions(trade, close_time.date())
 
         logger.info(
             "买入成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
@@ -620,6 +647,9 @@ class Broker:
             fee,
             en.eid,
             trade.tid,
+        )
+        tradelog.info(
+            f"{en.bid_time.date()}\t{en.side}\t{en.security}\t{filled}\t{price}\t{fee}"
         )
 
         logger.info(
@@ -666,32 +696,55 @@ class Broker:
                     (self._cash, np.array(recs, dtype=cash_dtype))
                 )
 
-        # 补齐持仓表
-        if self._positions.size > 0:
-            assert bid_time >= self._positions[0]["date"]
-            assert last_dt == self._positions[-1]["date"], "可用资金表与持仓表不同步"
+        # 补齐持仓表(需要处理复权)
+        feed = get_app_context().feed
 
-            last_dt = self._positions[-1]["date"]
+        if self._positions.size == 0:
+            return
 
-            frames = tf.get_frames(last_dt, bid_time, FrameType.DAY)[1:]
-            if frames.size > 0:
-                data = self._positions.tolist()
+        assert bid_time >= self._positions[0]["date"]
+        assert last_dt == self._positions[-1]["date"], "可用资金表与持仓表不同步"
 
-                last_day_position = self._positions[self._positions["date"] == last_dt]
-                for frame in frames:
-                    copy = last_day_position.copy()
+        last_dt = self._positions[-1]["date"]
 
-                    copy["date"] = tf.int2date(frame)
-                    # 延后一日后，持仓全部可用
-                    copy["sellable"] = copy["shares"]
-                    data.extend(copy)
+        frames = tf.get_frames(last_dt, bid_time, FrameType.DAY)[1:]
+        if frames.size == 0:
+            return
 
-                self._positions = np.array(data, dtype=daily_position_dtype)
+        data = self._positions.tolist()
 
-    def _update_position(self, trade: Trade, bid_date: datetime.date):
+        last_day_position = self._positions[self._positions["date"] == last_dt]
+        dr_baseline_dt = last_dt
+        for frame in frames:
+            # 将last_dt的持仓数据补齐到frame日期的持仓数据中
+            copy = last_day_position.copy()
+
+            cur_date = tf.int2date(frame)
+            copy["date"] = cur_date
+            # 延后一日后，持仓全部可用
+            copy["sellable"] = copy["shares"]
+            data.extend(copy)
+
+            # 如果当日有复权，需要将除权除息损益计入现金表
+            for i, sec in enumerate(copy["security"]):
+                dr = await feed.calc_xr_xd(
+                    sec, dr_baseline_dt, cur_date, copy["shares"][i]
+                )
+
+                if dr > 0:
+                    logger.info("%s于%s发生除权除息:%s", sec, cur_date, dr)
+                dr_baseline_dt = cur_date
+                _index = np.argwhere(self._cash["date"] >= cur_date).flatten()
+                if _index.size > 0:
+                    _index = _index[0]
+                    self._cash[_index:]["cash"] += dr
+
+        self._positions = np.array(data, dtype=daily_position_dtype)
+
+    async def _update_positions(self, trade: Trade, bid_date: datetime.date):
         """更新持仓信息
 
-        持仓信息为一维numpy数组，其类型为daily_position_dtype。如果某支股票在某日被清空，则当日持仓表保留记录，置shares为零，方便通过持仓表看出股票的进场出场时间，另一方面，如果不保留这条记录（而是删除），则在所有股票都被清空的情况下，会导致持仓表出现空洞
+        持仓信息为一维numpy数组，其类型为daily_position_dtype。如果某支股票在某日被清空，则当日持仓表保留记录，置shares为零，方便通过持仓表看出股票的进场出场时间，另一方面，如果不保留这条记录（而是删除），则在所有股票都被清空的情况下，会导致持仓表出现空洞，从而导致下一次交易时，误将更早之前的持仓记录复制到当日的持仓表中（在_before_trade中），而这些持仓实际上已经被清空。
 
         Args:
             trade: 交易信息
@@ -803,7 +856,7 @@ class Broker:
         dt = en.bid_time.date()
 
         money = price * to_sell
-        fee = money * self.commission
+        fee = math_round(money * self.commission, 2)
 
         security = en.security
 
@@ -835,7 +888,10 @@ class Broker:
                     en.eid,
                     exit_trade.tid,
                 )
-                self._update_position(exit_trade, exit_trade.time)
+                tradelog.info(
+                    f"{en.bid_time.date()}\t{exit_trade.side}\t{exit_trade.security}\t{exit_trade.shares}\t{exit_trade.price}\t{exit_trade.fee}"
+                )
+                await self._update_positions(exit_trade, exit_trade.time)
                 exit_trades.append(exit_trade)
                 self.trades[exit_trade.tid] = exit_trade
                 self.transactions.append(tx)
@@ -892,6 +948,9 @@ class Broker:
 
         feed = get_app_context().feed
 
+        entrustlog.info(
+            f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.SELL}"
+        )
         logger.info("卖出委托(%s): %s %s %s", bid_time, security, bid_price, bid_shares)
         _, _, sell_limit_price = await feed.get_trade_price_limits(
             security, bid_time.date()
@@ -904,7 +963,7 @@ class Broker:
             bid_type = BidType.LIMIT
 
         # fill the order, get mean price
-        bars = await feed.get_bars_for_match(security, bid_time)
+        bars = await feed.get_price_for_match(security, bid_time)
         if bars.size == 0:
             logger.warning("failed to match: %s, no data at %s", security, bid_time)
             raise EntrustError(
@@ -915,7 +974,7 @@ class Broker:
             security, bid_time, bars, bid_price, sell_limit_price
         )
 
-        c, v = bars["close"], bars["volume"]
+        c, v = bars["price"], bars["volume"]
 
         cum_v = np.cumsum(v)
 
@@ -990,7 +1049,7 @@ class Broker:
         """
         去掉已达到涨停时的分钟线，或者价格高于买入价的bars
         """
-        reach_limit = array_price_equal(bars["close"], limit_price)
+        reach_limit = array_price_equal(bars["price"], limit_price)
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
@@ -998,7 +1057,7 @@ class Broker:
                 EntrustError.REACH_BUY_LIMIT, security=security, time=order_time
             )
 
-        bars = bars[(bars["close"] <= price)]
+        bars = bars[(bars["price"] <= price)]
         if bars.size == 0:
             raise EntrustError(
                 EntrustError.PRICE_NOT_MEET,
@@ -1018,7 +1077,7 @@ class Broker:
         limit_price: float,
     ) -> np.ndarray:
         """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交"""
-        reach_limit = array_price_equal(bars["close"], limit_price)
+        reach_limit = array_price_equal(bars["price"], limit_price)
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
@@ -1026,7 +1085,7 @@ class Broker:
                 EntrustError.REACH_SELL_LIMIT, security=security, time=order_time
             )
 
-        bars = bars[(bars["close"] >= price)]
+        bars = bars[(bars["price"] >= price)]
         if bars.size == 0:
             raise EntrustError(
                 EntrustError.PRICE_NOT_MEET, security=security, entrust=price

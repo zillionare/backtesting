@@ -42,11 +42,11 @@ class ZillionareFeed(BaseFeed):
         if len(secs) == 0:
             raise ValueError("No securities provided")
 
-        bars = await Stock.batch_get_bars(secs, 1, FrameType.DAY, date)
+        bars = await Stock.batch_get_bars(secs, 1, FrameType.DAY, date, fq=False)
 
         try:
             if isinstance(secs, str):
-                return bars[secs]["close"][0]
+                return bars[secs]["close"][0].item()
             else:
                 return {sec: math_round(bars[sec]["close"][0], 2) for sec in secs}
         except IndexError:
@@ -58,3 +58,11 @@ class ZillionareFeed(BaseFeed):
 
         if len(prices):
             return prices[0]
+
+    async def calc_xr_xd(
+        self, sec: str, start: datetime.date, end: datetime.date, shares: int
+    ) -> float:
+        bars = await Stock.get_bars_in_range(sec, FrameType.DAY, start, end, fq=False)
+        factor = (bars[-1]["factor"] / bars[0]["factor"]) - 1
+        dr = math_round(bars[0]["close"].item(), 2) * shares * factor
+        return dr

@@ -2,9 +2,12 @@ import datetime
 import os
 import pickle
 import unittest
+from unittest import mock
 
 import cfg4py
+import numpy as np
 import omicron
+from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.config import get_config_dir
@@ -52,3 +55,19 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertAlmostEqual(9.68, limits[1], 2)
         self.assertAlmostEqual(7.92, limits[2], 2)
+
+    async def test_calc_xd_xr(self):
+        data = np.array(
+            [(datetime.date(2022, 3, 1), 10, 1), (datetime.date(2022, 3, 8), 9, 1.5)],
+            dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
+        )
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars_in_range", return_value=data
+        ):
+            dr = await self.feed.calc_xr_xd(
+                "002537.XSHE",
+                datetime.date(2022, 3, 1),
+                datetime.date(2022, 3, 8),
+                1000,
+            )
+            self.assertEqual(dr, 5000)
