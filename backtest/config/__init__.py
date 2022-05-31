@@ -9,10 +9,10 @@ Contributors:
 import logging
 import os
 import sys
+from importlib.metadata import version
 from os import path
 
 import cfg4py
-import pkg_resources
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,6 @@ def home_dir():
 def endpoint():
     cfg = cfg4py.get_instance()
 
-    ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
+    major, minor, *_ = version("zillionare-backtest").split(".")
     prefix = cfg.server.prefix.rstrip("/")
-    return f"{prefix}/v{ver.major}.{ver.minor}"
+    return f"{prefix}/v{major}.{minor}"
