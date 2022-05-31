@@ -12,6 +12,7 @@ import sys
 from os import path
 
 import cfg4py
+import pkg_resources
 
 logger = logging.getLogger(__name__)
 
@@ -38,3 +39,11 @@ def home_dir():
         return "/tmp/backtest"
 
     return path.expanduser("~/zillionare/backtest/")
+
+
+def endpoint():
+    cfg = cfg4py.get_instance()
+
+    ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
+    prefix = cfg.server.prefix.rstrip("/")
+    return f"{prefix}/v{ver.major}.{ver.minor}"

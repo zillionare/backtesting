@@ -14,7 +14,7 @@ from backtest.trade.datatypes import position_dtype
 
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
-bp = Blueprint("backtest", version=f"{ver.major}.{ver.minor}")
+bp = Blueprint("backtest")
 logger = logging.getLogger(__name__)
 
 

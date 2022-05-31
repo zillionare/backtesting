@@ -4,19 +4,17 @@ import logging
 import cfg4py
 import fire
 import omicron
-import pkg_resources
 from omicron.models.timeframe import TimeFrame
 from pyemit import emit
 from sanic import Sanic, response
 
-from backtest.config import get_config_dir
+from backtest.config import endpoint, get_config_dir
 from backtest.feed.basefeed import BaseFeed
 from backtest.web.accounts import Accounts
 from backtest.web.interfaces import bp
 
 application = Sanic("backtest")
 logger = logging.getLogger(__name__)
-ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
 
 @application.route("/")
@@ -55,12 +53,10 @@ async def application_exit(app, *args):
 
 
 def start(port: int):
-    cfg = cfg4py.init(get_config_dir())
-
-    prefix = cfg.server.prefix.rstrip("/")
-
-    logger.info("start backtest server at http://host:%s/%s", port, prefix)
-    bp.url_prefix = f"{prefix}/v{ver.major}.{ver.minor}"
+    cfg4py.init(get_config_dir())
+    ep = endpoint()
+    logger.info("start backtest server at http://host:%s/%s", port, ep)
+    bp.url_prefix = ep
 
     application.blueprint(bp)
 

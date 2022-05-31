@@ -1,8 +1,10 @@
 import os
 import unittest
 
+import cfg4py
+
 from backtest import cli
-from backtest.config import home_dir
+from backtest.config import get_config_dir, home_dir
 from tests import find_free_port
 
 
@@ -12,6 +14,7 @@ class CliTest(unittest.TestCase):
         os.environ["http_proxy"] = ""
         os.environ["all_proxy"] = ""
 
+        cfg4py.init(get_config_dir())
         port = find_free_port()
         cli.status()
 

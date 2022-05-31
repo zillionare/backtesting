@@ -14,7 +14,7 @@ import psutil
 import requests
 from tqdm import tqdm
 
-from backtest.config import get_config_dir
+from backtest.config import endpoint, get_config_dir
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,8 @@ def find_backtest_process():
     return None, None
 
 
-def is_running(port, path):
-    url = f"http://localhost:{port}/{path}/status"
+def is_running(port, endpoint):
+    url = f"http://localhost:{port}/{endpoint}/status"
 
     try:
         r = requests.get(url)
@@ -61,13 +61,11 @@ def status():
         print("backtest server未启动")
         return
 
-    path = cfg.server.path.strip("/")
-
-    if is_running(port, path):
+    if is_running(port, endpoint()):
         print("\n=== backtest server is RUNNING ===")
         print("pid:", pid)
         print("port:", port)
-        print("path:", path)
+        print("endpoint:", endpoint())
         print("\n")
     else:
         print("=== backtest server is DEAD ===")
@@ -88,10 +86,9 @@ def stop():
 
 
 def start(port: int = None):
-    path = cfg.server.path.strip("/")
     port = port or cfg.server.port
 
-    if is_running(port, path):
+    if is_running(port, endpoint()):
         status()
         return
 
@@ -105,7 +102,7 @@ def start(port: int = None):
 
     for i in tqdm(range(100)):
         time.sleep(0.1)
-        if is_running(port, path):
+        if is_running(port, endpoint()):
             status()
             return
 

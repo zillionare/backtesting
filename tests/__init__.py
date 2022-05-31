@@ -19,7 +19,7 @@ from omicron.models.timeframe import TimeFrame
 
 from backtest.app import application as app
 from backtest.common.errors import Error
-from backtest.config import get_config_dir
+from backtest.config import endpoint, get_config_dir
 from backtest.web.interfaces import bp
 
 os.environ[cfg4py.envar] = "DEV"
@@ -28,11 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def init_interface_test():
-    cfg = cfg4py.init(get_config_dir())
-
-    prefix = cfg.server.prefix.rstrip("/")
-    ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
-    bp.url_prefix = f"{prefix}/v{ver.major}.{ver.minor}"
+    bp.url_prefix = endpoint()
     app.blueprint(bp)
 
     return app
@@ -46,7 +42,7 @@ def find_free_port():
 
 
 async def delete(cmd: str, token: str, params=None):
-    url = f"{cfg.server.path}{cmd}"
+    url = f"{endpoint()}/{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     _, response = await app.asgi_client.delete(url, params=params, headers=headers)
@@ -64,7 +60,7 @@ async def delete(cmd: str, token: str, params=None):
 
 
 async def post(cmd: str, token: str, data):
-    url = f"{cfg.server.path}{cmd}"
+    url = f"{endpoint()}/{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     _, response = await app.asgi_client.post(url, json=data, headers=headers)
@@ -82,7 +78,7 @@ async def post(cmd: str, token: str, data):
 
 
 async def get(cmd: str, token: str, **kwargs):
-    url = f"{cfg.server.path}{cmd}"
+    url = f"{endpoint()}/{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
     _, response = await app.asgi_client.get(url, headers=headers, params=kwargs)
