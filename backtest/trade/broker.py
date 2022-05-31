@@ -26,8 +26,7 @@ from pyemit import emit
 
 from backtest.common.errors import AccountError, BadParameterError, EntrustError
 from backtest.common.helper import get_app_context, tabulate_numpy_array
-from backtest.trade.trade import Trade
-from backtest.trade.types import (
+from backtest.trade.datatypes import (
     E_BACKTEST,
     BidType,
     Entrust,
@@ -38,6 +37,7 @@ from backtest.trade.types import (
     float_ts_dtype,
     position_dtype,
 )
+from backtest.trade.trade import Trade
 
 cfg = cfg4py.get_instance()
 logger = logging.getLogger(__name__)
@@ -455,7 +455,7 @@ class Broker:
         if self.mode == "bt" and bid_time > self.bt_stop:
             self._bt_stopped = True
             logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
-            raise AccountError(f"委托时间超过回测结束时间，{self.bt_stop} -> {bid_time}")
+            raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
 
     async def buy(self, *args, **kwargs) -> Trade:
         """买入委托
@@ -1092,15 +1092,6 @@ class Broker:
             )
 
         return bars
-
-    def _reached_trade_price_limits(
-        self, bars: np.ndarray, bid_time: datetime.datetime, limit_price: float
-    ) -> bool:
-        cur_bar = bars[bars["frame"] == bid_time]
-        if len(cur_bar) == 0:
-            raise BadParameterError(f"{bid_time} not in bars for matching")
-
-        return price_equal(cur_bar["close"], limit_price)
 
     def freeze(self):
         """冻结账户，停止接收新的委托"""

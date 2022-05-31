@@ -28,7 +28,7 @@ class Config(object):
         annual_days: Optional[int] = None
 
     class server:
-        path: Optional[str] = None
+        prefix: Optional[str] = None
 
     class auth:
         admin: Optional[str] = None

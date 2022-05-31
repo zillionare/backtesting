@@ -1,24 +1,28 @@
 import logging
 import pickle
-from functools import wraps
 
 import arrow
+import pkg_resources
 from omicron import math_round
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import AccountError, EntrustError
+from backtest.common.errors import AccountError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
-from backtest.trade.types import position_dtype
+from backtest.trade.datatypes import position_dtype
 
-bp = Blueprint("backtest")
+ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
+
+bp = Blueprint("backtest", version=f"{ver.major}.{ver.minor}")
 logger = logging.getLogger(__name__)
 
 
 @bp.route("status", methods=["GET"])
 async def status(request):
-    return response.json({"status": "ok", "listen": request.url})
+    return response.json(
+        {"status": "ok", "listen": request.url, "version": ver.base_version}
+    )
 
 
 @bp.route("start_backtest", methods=["POST"])
@@ -67,10 +71,14 @@ async def start_backtest(request):
         )
 
     accounts = request.app.ctx.accounts
-    result = accounts.create_account(
-        name, token, principal, commission, start=start, end=end
-    )
-    return response.json(jsonify(result))
+    try:
+        result = accounts.create_account(
+            name, token, principal, commission, start=start, end=end
+        )
+        logger.info("backtest account created:", result)
+        return response.json(jsonify(result))
+    except AccountError as e:
+        return response.text(e.message, status=499)
 
 
 @bp.route("accounts", methods=["GET"])

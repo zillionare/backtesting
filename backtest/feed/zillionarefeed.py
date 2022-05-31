@@ -7,6 +7,7 @@ from coretypes import FrameType
 from omicron import math_round
 from omicron.models.stock import Stock
 
+from backtest.common.errors import EntrustError
 from backtest.feed.basefeed import BaseFeed
 
 from . import match_data_dtype
@@ -58,6 +59,8 @@ class ZillionareFeed(BaseFeed):
 
         if len(prices):
             return prices[0]
+        else:
+            raise EntrustError(EntrustError.NODATA, security=sec, time=date)
 
     async def calc_xr_xd(
         self, sec: str, start: datetime.date, end: datetime.date, shares: int

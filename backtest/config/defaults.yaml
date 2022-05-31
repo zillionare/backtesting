@@ -55,7 +55,7 @@ metrics:
   risk_free_rate: 0.03
   annual_days: 252
 server:
-  path: /backtest/api/trade/v0.3/
+  prefix: /backtest/api/trade/
 auth:
   admin: bGZJGEZ
 feed:

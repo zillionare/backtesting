@@ -78,8 +78,6 @@ def protected(wrapped):
                 try:
                     result = await f(request, *args, **kwargs)
                     return result
-                except AccountError as e:
-                    return response.text(e.message, status=499)
                 except EntrustError as e:
                     logger.exception(e)
                     logger.warning("sell_percent error: %s", params)
@@ -117,9 +115,11 @@ def protected_admin(wrapped):
                     return response.text(str(e), status=500)
             elif not is_authenticated:
                 logger.warning("admin token is invalid: [%s]", request.token)
-                return response.json({"msg": "token is invalid"}, 401)
+                return response.text(f"token({request.token}) is invalid", 401)
             elif is_duplicated:
-                return response.json({"msg": "duplicated request"}, 200)
+                return response.text(
+                    f"duplicated request: {request.ctx.request_id}", 200
+                )
 
         return decorated_function
 
@@ -176,14 +176,3 @@ def tabulate_numpy_array(arr: np.ndarray) -> str:
     """
     table = tabulate(arr, headers=arr.dtype.names, tablefmt="fancy_grid")
     return table
-
-
-def tabulate_trades(trades: list) -> str:
-    """将交易记录格式化为表格对齐的字符串"""
-    headers = ("time", "symbol", "side", "price", "shares", "fee", "tid")
-
-    data = [
-        (t.time, t.security, t.side, t.price, t.shares, t.fee, t.tid[-6:])
-        for k, t in trades.items()
-    ]
-    return tabulate(data, headers=headers, tablefmt="fancy_grid")

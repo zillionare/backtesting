@@ -23,7 +23,8 @@ class BadParameterError(Error):
 class AccountError(Error):
     """账户冲突，或者已冻结"""
 
-    pass
+    def __str__(self):
+        return "账户冲突，或者已冻结"
 
 
 class EntrustError(Error):
@@ -36,6 +37,7 @@ class EntrustError(Error):
     NO_POSITION = -5
     PRICE_NOT_MEET = -6
     NODATA_FOR_MATCH = -7
+    NODATA = -8
 
     def __init__(self, status_code: int, **kwargs):
         self.status_code = status_code
@@ -50,4 +52,5 @@ class EntrustError(Error):
             EntrustError.NO_POSITION: "{security}在{time}期间没有持仓",
             EntrustError.PRICE_NOT_MEET: "{security}现价未达到委托价:{entrust}",
             EntrustError.NODATA_FOR_MATCH: "没有匹配到{security}在{time}的成交数据",
+            EntrustError.NODATA: "获取{security}在{time}的行情数据失败，请检查日期是否为交易日，或者当天是否停牌",
         }.get(self.status_code)

@@ -7,8 +7,7 @@ from unittest import mock
 import arrow
 import cfg4py
 
-from backtest.app import application_exit, application_init
-from backtest.common.helper import jsonify
+from backtest.common.errors import Error
 from tests import (
     assert_deep_almost_equal,
     data_populate,
@@ -23,7 +22,7 @@ app = init_interface_test()
 
 class InterfacesTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        name = "test"
+        self.name = "test"
         principal = 1_000_000
         commission = 1e-4
         self.token = uuid.uuid4().hex
@@ -45,7 +44,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "start_backtest",
             self.token,
             data={
-                "name": name,
+                "name": self.name,
                 "principal": principal,
                 "commission": commission,
                 "token": self.token,
@@ -255,18 +254,21 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             (9.65, 500, "2022-03-11 09:31:00"),  # 这一笔不会成交
             (9.65, 500, "2022-03-14 09:31:00"),
         ]:
-            await post(
-                "buy",
-                self.token,
-                {
-                    "security": hljh,
-                    "price": price,
-                    "volume": volume,
-                    "timeout": 0.5,
-                    "order_time": tm,
-                    "request_id": uuid.uuid4().hex,
-                },
-            )
+            try:
+                await post(
+                    "buy",
+                    self.token,
+                    {
+                        "security": hljh,
+                        "price": price,
+                        "volume": volume,
+                        "timeout": 0.5,
+                        "order_time": tm,
+                        "request_id": uuid.uuid4().hex,
+                    },
+                )
+            except Error:
+                pass
 
         await post(
             "sell",
@@ -308,24 +310,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         }
         assert_deep_almost_equal(self, exp, actual, places=2)
-
-    async def test_start_backtest(self):
-        "test start_backtest"
-        await post(
-            "start_backtest",
-            "",
-            {
-                "name": "test_start_backtest",
-                "version": 0.1,
-                "start": "2022-03-01",
-                "end": "2022-03-14",
-                "principal": 1_000_000,
-                "commission": 1e-4,
-            },
-        )
-
-        accounts = await get("accounts", self.admin_token)
-        print(accounts)
 
     async def test_protect_admin(self):
         """valid admin token is tested through other tests"""
@@ -381,3 +365,23 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         # should be 250, rounded to 300
         self.assertEqual(300, response[0]["filled"])
+
+    async def test_delete_accounts(self):
+        # the account is created by asyncSetup
+        await delete("accounts", self.token, params={"name": self.name})
+
+    async def test_frozen_accounts(self):
+        with self.assertRaises(Error) as cm:
+            await post(
+                "buy",
+                self.token,
+                {
+                    "security": "002537.XSHE",
+                    "price": 10,
+                    "volume": 500,
+                    "timeout": 0.5,
+                    "order_time": "2022-05-01 10:04:00",
+                    "request_id": "123456789",
+                },
+            )
+        self.assertTrue(str(cm.exception).find("冻结") > 0)

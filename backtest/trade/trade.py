@@ -2,8 +2,8 @@ import datetime
 import logging
 import uuid
 
+from backtest.trade.datatypes import EntrustSide
 from backtest.trade.transaction import Transaction
-from backtest.trade.types import EntrustSide
 
 logger = logging.getLogger(__name__)
 

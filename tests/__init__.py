@@ -11,12 +11,14 @@ import arrow
 import cfg4py
 import numpy as np
 import pandas as pd
+import pkg_resources
 from coretypes import FrameType, bars_dtype
 from omicron.dal.influx.influxclient import InfluxClient
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame
 
 from backtest.app import application as app
+from backtest.common.errors import Error
 from backtest.config import get_config_dir
 from backtest.web.interfaces import bp
 
@@ -28,8 +30,9 @@ logger = logging.getLogger(__name__)
 def init_interface_test():
     cfg = cfg4py.init(get_config_dir())
 
-    path = cfg.server.path.rstrip("/")
-    bp.url_prefix = path
+    prefix = cfg.server.prefix.rstrip("/")
+    ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
+    bp.url_prefix = f"{prefix}/v{ver.major}.{ver.minor}"
     app.blueprint(bp)
 
     return app
@@ -46,61 +49,55 @@ async def delete(cmd: str, token: str, params=None):
     url = f"{cfg.server.path}{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
-    try:
-        _, response = await app.asgi_client.delete(url, params=params, headers=headers)
-        content_type = response.headers.get("Content-Type")
+    _, response = await app.asgi_client.delete(url, params=params, headers=headers)
+    content_type = response.headers.get("Content-Type")
 
-        if response.status == 200:
-            if content_type == "application/json":
-                return response.json
-            elif content_type.startswith("text"):
-                return response.text
-            else:
-                return pickle.loads(response.content)
-    except Exception as e:
-        logger.exception(e)
-        return None
+    if response.status == 200:
+        if content_type == "application/json":
+            return response.json
+        elif content_type.startswith("text"):
+            return response.text
+        else:
+            return pickle.loads(response.content)
+    if response.status == 499:
+        raise Error(response.status, response.text)
 
 
 async def post(cmd: str, token: str, data):
     url = f"{cfg.server.path}{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
-    try:
-        _, response = await app.asgi_client.post(url, json=data, headers=headers)
-        content_type = response.headers.get("Content-Type")
+    _, response = await app.asgi_client.post(url, json=data, headers=headers)
+    content_type = response.headers.get("Content-Type")
 
-        if response.status == 200:
-            if content_type == "application/json":
-                return response.json
-            elif content_type.startswith("text"):
-                return response.text
-            else:
-                return pickle.loads(response.content)
-    except Exception as e:
-        logger.exception(e)
-        return None
+    if response.status == 200:
+        if content_type == "application/json":
+            return response.json
+        elif content_type.startswith("text"):
+            return response.text
+        else:
+            return pickle.loads(response.content)
+    if response.status == 499:
+        raise Error(response.status, response.text)
 
 
 async def get(cmd: str, token: str, **kwargs):
     url = f"{cfg.server.path}{cmd}"
 
     headers = {"Authorization": f"Token {token}", "Request-ID": uuid.uuid4().hex}
-    try:
-        _, response = await app.asgi_client.get(url, headers=headers, params=kwargs)
+    _, response = await app.asgi_client.get(url, headers=headers, params=kwargs)
 
-        content_type = response.headers.get("Content-Type")
+    content_type = response.headers.get("Content-Type")
 
-        if response.status == 200:
-            if content_type == "application/json":
-                return response.json
-            elif content_type.startswith("text"):
-                return response.text
-            else:
-                return pickle.loads(response.content)
-    except Exception as e:
-        logger.exception(e)
-        return None
+    if response.status == 200:
+        if content_type == "application/json":
+            return response.json
+        elif content_type.startswith("text"):
+            return response.text
+        else:
+            return pickle.loads(response.content)
+    if response.status == 499:
+        raise Error(response.status, response.text)
 
 
 def data_dir():

@@ -4,9 +4,10 @@ import logging
 import cfg4py
 import fire
 import omicron
+import pkg_resources
 from omicron.models.timeframe import TimeFrame
 from pyemit import emit
-from sanic import Sanic
+from sanic import Sanic, response
 
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
@@ -15,6 +16,14 @@ from backtest.web.interfaces import bp
 
 application = Sanic("backtest")
 logger = logging.getLogger(__name__)
+ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
+
+
+@application.route("/")
+async def root(request):
+    return response.text(
+        f"Welcome to zillionare bactest server. The endpoints is {bp.url_prefix}"
+    )
 
 
 @application.listener("before_server_start")
@@ -48,10 +57,10 @@ async def application_exit(app, *args):
 def start(port: int):
     cfg = cfg4py.init(get_config_dir())
 
-    path = cfg.server.path.rstrip("/")
+    prefix = cfg.server.prefix.rstrip("/")
 
-    logger.info("start backtest server at http://host:%s/%s", port, path)
-    bp.url_prefix = path
+    logger.info("start backtest server at http://host:%s/%s", port, prefix)
+    bp.url_prefix = f"{prefix}/v{ver.major}.{ver.minor}"
 
     application.blueprint(bp)
 

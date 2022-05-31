@@ -16,14 +16,14 @@ from backtest.common.helper import get_app_context, tabulate_numpy_array
 from backtest.config import get_config_dir
 from backtest.feed.zillionarefeed import ZillionareFeed
 from backtest.trade.broker import Broker
-from backtest.trade.trade import Trade
-from backtest.trade.types import (
+from backtest.trade.datatypes import (
     E_BACKTEST,
     EntrustSide,
     assets_dtype,
     cash_dtype,
     position_dtype,
 )
+from backtest.trade.trade import Trade
 from tests import assert_deep_almost_equal, data_populate
 
 logger = logging.getLogger(__name__)
