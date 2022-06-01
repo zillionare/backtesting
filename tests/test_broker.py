@@ -97,6 +97,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker = Broker("test", principal, commission)
 
         async def on_backtest_event(data):
+            assert isinstance(data, dict)
             logger.info("on_backtest_event: %s", data)
 
         emit.register(E_BACKTEST, on_backtest_event)

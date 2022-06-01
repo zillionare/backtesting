@@ -25,7 +25,7 @@ from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
 from backtest.common.errors import AccountError, BadParameterError, EntrustError
-from backtest.common.helper import get_app_context, tabulate_numpy_array
+from backtest.common.helper import get_app_context, jsonify, tabulate_numpy_array
 from backtest.trade.datatypes import (
     E_BACKTEST,
     BidType,
@@ -668,7 +668,7 @@ class Broker:
         cash_change = -1 * (money + fee)
         await self._update_assets(cash_change, close_time.date())
 
-        await emit.emit(E_BACKTEST, {"buy": trade})
+        await emit.emit(E_BACKTEST, {"buy": jsonify(trade)})
         return trade
 
     async def _before_trade(self, bid_time: Frame):
@@ -921,7 +921,7 @@ class Broker:
 
         await self._update_assets(refund, en.bid_time.date())
 
-        await emit.emit(E_BACKTEST, {"sell": exit_trades})
+        await emit.emit(E_BACKTEST, {"sell": jsonify(exit_trades)})
         return exit_trades
 
     async def sell(self, *args, **kwargs) -> List[Trade]:

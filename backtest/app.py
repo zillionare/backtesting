@@ -46,10 +46,10 @@ async def application_init(app, *args):
 
 @application.listener("after_server_stop")
 async def application_exit(app, *args):
-    await omicron.close()
-    await emit.stop()
     accounts = app.ctx.accounts
     accounts.on_exit()
+    await omicron.close()
+    await emit.stop()
 
 
 def start(port: int):
