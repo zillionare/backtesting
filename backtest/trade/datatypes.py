@@ -65,12 +65,39 @@ daily_position_dtype = np.dtype(
         ("price", "<f8"),
     ]
 )
+"""the position dtype which usually used in backtest server internally:
 
-# for return to client
+    ```
+    np.dtype(
+        [
+            ("date", "O"),
+            ("security", "O"),
+            ("shares", "<f8"),
+            ("sellable", "<f8"),
+            ("price", "<f8"),
+        ]
+    )
+
+    ```
+"""
+
+
 position_dtype = np.dtype(
     [("security", "O"), ("shares", "<f8"), ("sellable", "<f8"), ("price", "<f8")]
 )
+"""the position dtype which will return back to trader-client
 
+    ```
+    np.dtype(
+        [
+            ("security", "O"),
+            ("shares", "<f8"),
+            ("sellable", "<f8"),
+            ("price", "<f8")
+        ]
+    )
+    ```
+"""
 
 assets_dtype = np.dtype([("date", "O"), ("assets", "<f8")])
 

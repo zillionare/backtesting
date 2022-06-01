@@ -233,10 +233,10 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         info = await get("info", self.token)
         self.assertAlmostEqual(info["available"], 995289.5289618492, 2)
-        self.assertAlmostEqual(info["market_value"], 4780.0, 2)
-        self.assertAlmostEqual(info["assets"], 1000069.528, 2)
-        self.assertAlmostEqual(info["pnl"], 69.5289, 2)
-        self.assertAlmostEqual(info["ppnl"], 69.5289 / 1_000_000, 2)
+        self.assertAlmostEqual(info["market_value"], 4750.0, 2)
+        self.assertAlmostEqual(info["assets"], 1000039.528, 2)
+        self.assertAlmostEqual(info["pnl"], 39.5289, 2)
+        self.assertAlmostEqual(info["ppnl"], 39.5289 / 1_000_000, 2)
 
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
     async def test_metrics(self, mocked_now):

@@ -54,15 +54,17 @@ class Trade:
         """将Trade对象转换为字典格式。
 
         Returns:
+            Dict: 返回值，其key为
 
-                - tid: 交易号
-                - eid: 委托号
-                - security: 证券代码
-                - price: 交易价格
-                - filled: 居交数量
-                - trade_fees: 交易手续费
-                - order_side: 交易方向
-                - time: 交易时间
+            - tid: 交易号
+            - eid: 委托号
+            - security: 证券代码
+            - price: 交易价格
+            - filled: 居交数量
+            - trade_fees: 交易手续费
+            - order_side: 交易方向
+            - time: 交易时间
+
         """
         return {
             "tid": str(self.tid),

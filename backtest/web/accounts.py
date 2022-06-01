@@ -1,3 +1,7 @@
+"""简易账户管理
+
+提供了创建账户、查询账户、删除账户和状态持久化实现。
+"""
 import datetime
 import logging
 import os

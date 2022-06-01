@@ -191,7 +191,7 @@ class Broker:
 
         Args:
             dt : 查询哪一天的持仓
-            dtype : 返回数据类型，可为position_dtype或daily_position_dtype，后者用于日志输出
+            dtype : 返回的数据类型，可为[position_dtype][backtest.trade.datatypes.position_dtype]或[daily_position_dtype][backtest.trade.datatypes.daily_position_dtype]，后者用于日志输出
 
         Returns:
             返回结果为dtype为`dtype`的一维numpy structured array，其中price为该批持仓的均价。
@@ -233,36 +233,40 @@ class Broker:
             date = tf.int2date(frame)
             await self._calc_assets(date)
 
-    async def info(self) -> Dict:
-        """账号相关信息
+    async def info(self, dt: datetime.date = None) -> Dict:
+        """`dt`日的账号相关信息
 
         Returns:
             Dict: 账号相关信息：
 
-                - name: str, 账户名
-                - principal: float, 初始资金
-                - assets: float, 当前资产
-                - start: datetime.date, 账户创建时间
-                - last_trade: datetime.datetime, 最后一笔交易时间
-                - available: float, 可用资金
-                - market_value: 股票市值
-                - pnl: 盈亏(绝对值)
-                - ppnl: 盈亏(百分比)，即pnl/principal
-                - positions: 当前持仓，dtype为position_dtype的numpy structured array
+            - name: str, 账户名
+            - principal: float, 初始资金
+            - assets: float, `dt`日资产
+            - start: datetime.date, 账户创建时间
+            - last_trade: datetime.datetime, 最后一笔交易时间
+            - available: float, `dt`日可用资金
+            - market_value: `dt`日股票市值
+            - pnl: `dt`盈亏(绝对值)
+            - ppnl: 盈亏(百分比)，即pnl/principal
+            - positions: 当前持仓，dtype为position_dtype的numpy structured array
 
         """
-        await self.recalc_assets()
+        dt = dt or self._last_trade_date
+
+        cash = self.get_cash(dt)
+        assets = await self.get_assets(dt)
+
         return {
             "name": self.account_name,
             "principal": self.principal,
-            "assets": self.assets,
             "start": self.account_start_date,
             "last_trade": self.last_trade_date,
-            "available": self.cash,
-            "market_value": self.assets - self.cash,
-            "pnl": self.assets - self.principal,
-            "ppnl": self.assets / self.principal - 1,
-            "positions": self.position,
+            "assets": assets,
+            "available": cash,
+            "market_value": assets - cash,
+            "pnl": assets - self.principal,
+            "ppnl": assets / self.principal - 1,
+            "positions": self.get_position(dt),
         }
 
     async def get_returns(
@@ -402,13 +406,13 @@ class Broker:
         return assets, cash, market_value
 
     @property
-    def position(self):
+    def position(self) -> np.ndarray:
         """获取当前持仓
 
         如果要获取历史上某天的持仓，请使用`get_position`方法。
 
         Returns:
-            返回成员为(code, shares, sellable, price)的numpy structure array
+            返回dtype为[position_dtype][backtest.trade.datatypes.position_dtype]的numpy structure array
         """
         if self._positions.size == 0:
             return np.array([], dtype=position_dtype)
@@ -465,11 +469,11 @@ class Broker:
         如果bid_price为None，则使用涨停价买入。
 
         Args:
-            security : 证券代码
-            bid_price : 委托价格。如果为None，则为市价委托
-            bid_shares : 询买的股数
-            bid_time: 委托时间
-            request_id: 请求ID
+            security str: 证券代码
+            bid_price float: 委托价格。如果为None，则为市价委托
+            bid_shares int: 询买的股数
+            bid_time datetime.datetime: 委托时间
+            request_id str: 请求ID
 
         Returns:
             [Trade][backtest.trade.trade.Trade]对象
@@ -920,17 +924,17 @@ class Broker:
         await emit.emit(E_BACKTEST, {"sell": exit_trades})
         return exit_trades
 
-    async def sell(self, *args, **kwargs):
+    async def sell(self, *args, **kwargs) -> List[Trade]:
         """卖出委托
 
         Args:
-            security : 委托证券代码
-            price : 出售价格，如果为None，则为市价委托
-            bid_shares : 询卖股数
+            security: 委托证券代码
+            price: 出售价格，如果为None，则为市价委托
+            bid_shares: 询卖股数
             bid_time: 委托时间
 
         Returns:
-            成交记录列表
+            成交记录列表,每个元素都是一个[Trade][backtest.trade.trade.Trade]对象
 
         """
         # 同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化
@@ -1111,30 +1115,30 @@ class Broker:
             baseline: 参考标的
 
         Returns:
-            Dict: 指标字典
+            Dict: 指标字典，其key为
 
-                - start 回测起始时间
-                - end   回测结束时间
-                - window 资产暴露时间
-                - total_tx 发生的配对交易次数
-                - total_profit 总盈亏
-                - total_profit_rate 总盈亏率
-                - win_rate 胜率
-                - mean_return 每笔配对交易平均回报率
-                - sharpe    夏普比率
-                - max_drawdown 最大回撤
+            - start 回测起始时间
+            - end   回测结束时间
+            - window 资产暴露时间
+            - total_tx 发生的配对交易次数
+            - total_profit 总盈亏
+            - total_profit_rate 总盈亏率
+            - win_rate 胜率
+            - mean_return 每笔配对交易平均回报率
+            - sharpe    夏普比率
+            - max_drawdown 最大回撤
+            - sortino
+            - calmar
+            - annual_return 年化收益率
+            - volatility 波动率
+            - baseline: dict
+                - win_rate
+                - sharpe
+                - max_drawdown
                 - sortino
-                - calmar
-                - annual_return 年化收益率
-                - volatility 波动率
-                - baseline: dict
-                    - win_rate
-                    - sharpe
-                    - max_drawdown
-                    - sortino
-                    - annual_return
-                    - total_profit_rate
-                    - volatility
+                - annual_return
+                - total_profit_rate
+                - volatility
 
         """
         try:

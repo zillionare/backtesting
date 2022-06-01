@@ -45,10 +45,10 @@ async def start_backtest(request):
 
         json: 包含以下字段的json对象
 
-            - account_name, str
-            - token, str
-            - account_start_date, str
-            - principal, float
+        - account_name, str
+        - token, str
+        - account_start_date, str
+        - principal, float
 
     """
     params = request.json or {}
@@ -108,14 +108,14 @@ async def buy(request):
     Returns:
         Response: 买入结果, 字典，包含以下字段：
 
-            - tid: str, 交易id
-            - eid: str, 委托id
-            - security: str, 证券代码
-            - order_side: str, 买入/卖出
-            - price: float, 成交均价
-            - filled: float, 成交数量
-            - time: str, 下单时间
-            - trade_fees: float, 手续费
+        - tid: str, 交易id
+        - eid: str, 委托id
+        - security: str, 证券代码
+        - order_side: str, 买入/卖出
+        - price: float, 成交均价
+        - filled: float, 成交数量
+        - time: str, 下单时间
+        - trade_fees: float, 手续费
 
     """
     params = request.json or {}
@@ -135,12 +135,14 @@ async def market_buy(request):
     """市价买入
 
     Args:
-        request : 参数以json方式传入， 包含：
-            security : 证券代码
-            volume: 买入数量
-            order_time: 下单时间
+        request Request: 参数以json方式传入， 包含
+
+            - security: 证券代码
+            - volume: 买入数量
+            - order_time: 下单时间
     Returns:
-        买入结果, 请参考[backtest.web.interfaces.buy][]
+        Response: 买入结果, 请参考[backtest.web.interfaces.buy][]
+
     """
     params = request.json or {}
 
@@ -185,8 +187,9 @@ async def sell_percent(request):
     """卖出证券
 
     Args:
-        request: 参数以json方式传入， 包含：
-            - security : 证券代码
+        request Request: 参数以json方式传入， 包含
+
+            - security: 证券代码
             - percent: 卖出比例
             - order_time: 下单时间
             - price: 卖出价格,如果为None，则意味着以市价卖出
@@ -248,7 +251,7 @@ async def positions(request):
             - date: 日期，格式为YYYY-MM-DD,待获取持仓信息的日期
 
     Returns:
-        Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为`position_dtype`
+        Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为[backtest.trade.datatypes.position_dtype][]
 
     """
     date = request.args.get("date")
@@ -267,23 +270,29 @@ async def positions(request):
 async def info(request):
     """获取账户信息
 
+    Args:
+        request Request: 以args方式传入，包含以下字段
+
+            - date: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则意味着取当前日期的账户信息
+
     Returns:
 
         Response: 结果以binary方式返回。结果为一个dict，其中包含以下字段：
 
-            - name: str, 账户名
-            - principal: float, 初始资金
-            - assets: float, 当前资产
-            - start: datetime.date, 账户创建时间
-            - last_trade: datetime.date, 最后一笔交易日期
-            - available: float, 可用资金
-            - market_value: 股票市值
-            - pnl: 盈亏(绝对值)
-            - ppnl: 盈亏(百分比)，即pnl/principal
-            - positions: 当前持仓，dtype为position_dtype的numpy structured array
+        - name: str, 账户名
+        - principal: float, 初始资金
+        - assets: float, 当前资产
+        - start: datetime.date, 账户创建时间
+        - last_trade: datetime.date, 最后一笔交易日期
+        - available: float, 可用资金
+        - market_value: 股票市值
+        - pnl: 盈亏(绝对值)
+        - ppnl: 盈亏(百分比)，即pnl/principal
+        - positions: 当前持仓，dtype为[backtest.trade.datatypes.position_dtype][]的numpy structured array
 
     """
-    result = await request.ctx.broker.info()
+    date = request.args.get("date")
+    result = await request.ctx.broker.info(date)
     return response.raw(pickle.dumps(result))
 
 
@@ -326,10 +335,10 @@ async def bills(request):
     Returns:
         Response: 以binary方式返回。结果为一个字典，包括以下字段：
 
-            - tx: 配对的交易记录
-            - trades: 成交记录
-            - positions: 持仓记录
-            - assets: 每日市值
+        - tx: 配对的交易记录
+        - trades: 成交记录
+        - positions: 持仓记录
+        - assets: 每日市值
 
     """
     results = {}
@@ -354,7 +363,10 @@ async def delete_accounts(request):
 
     当提供了账户名`name`和token（通过headers传递)时，如果name与token能够匹配，则删除`name`账户。
     Args:
-        name: 待删除的账户名。如果为空，且提供了admin token，则删除全部账户。
+        request Request: 通过params传递以下字段
+
+            - name, 待删除的账户名。如果为空，且提供了admin token，则删除全部账户。
+
     """
     account_to_delete = request.args.get("name", None)
     accounts = request.app.ctx.accounts

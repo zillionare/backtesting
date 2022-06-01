@@ -314,18 +314,18 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker = Broker("test", 1e6, 1e-4)
         tyst, hljh = "603717.XSHG", "002537.XSHE"
 
-        await broker.buy(tyst, 14.84, 500, datetime.datetime(2022, 3, 7, 9, 41))
-        await broker.buy(tyst, 14.79, 1000, datetime.datetime(2022, 3, 8, 14, 8))
-        await broker.buy(hljh, 8.95, 1000, datetime.datetime(2022, 3, 9, 9, 40))
-        await broker.buy(hljh, 9.09, 1000, datetime.datetime(2022, 3, 10, 9, 33))
+        async def make_trades():
+            await broker.buy(tyst, 14.84, 500, datetime.datetime(2022, 3, 7, 9, 41))
+            await broker.buy(tyst, 14.79, 1000, datetime.datetime(2022, 3, 8, 14, 8))
+            await broker.buy(hljh, 8.95, 1000, datetime.datetime(2022, 3, 9, 9, 40))
+            await broker.buy(hljh, 9.09, 1000, datetime.datetime(2022, 3, 10, 9, 33))
 
-        await broker.sell(tyst, 12.33, 1100, datetime.datetime(2022, 3, 10, 9, 35))
-        await broker.sell(hljh, 9.94, 1500, datetime.datetime(2022, 3, 14, 10, 14))
+            await broker.sell(tyst, 12.33, 1100, datetime.datetime(2022, 3, 10, 9, 35))
+            await broker.sell(hljh, 9.94, 1500, datetime.datetime(2022, 3, 14, 10, 14))
 
-        with mock.patch(
-            "arrow.now", return_value=datetime.datetime(2022, 3, 14, 9, 31)
-        ):
-            info = await broker.info()
+        await make_trades()
+
+        def assert_info_success(info):
             actual = info["positions"]
             exp = np.array(
                 [
@@ -346,25 +346,24 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(8828.0, info["market_value"], 2)
             self.assertAlmostEqual(info["assets"] - info["principal"], info["pnl"], 2)
 
+        with mock.patch(
+            "arrow.now", return_value=datetime.datetime(2022, 3, 14, 9, 31)
+        ):
+            info1 = await broker.info()
+            assert_info_success(info1)
+
         cash1 = broker.get_cash(datetime.date(2022, 3, 9))
         assets1 = await broker.get_assets(datetime.date(2022, 3, 9))
 
         # assume xdxr happend at 2022/3/9 on tyst
         broker = Broker("test", 1e6, 1e-4)
-        tyst, hljh = "603717.XSHG", "002537.XSHE"
 
         logger.info("check info with xdxr")
         with mock.patch(
             "backtest.feed.zillionarefeed.ZillionareFeed.calc_xr_xd",
             side_effect=[0, 2000, 0, 0, 0, 0, 0, 0, 0],
         ):
-            await broker.buy(tyst, 14.84, 500, datetime.datetime(2022, 3, 7, 9, 41))
-            await broker.buy(tyst, 14.79, 1000, datetime.datetime(2022, 3, 8, 14, 8))
-            await broker.buy(hljh, 8.95, 1000, datetime.datetime(2022, 3, 9, 9, 40))
-            await broker.buy(hljh, 9.09, 1000, datetime.datetime(2022, 3, 10, 9, 33))
-
-            await broker.sell(tyst, 12.33, 1100, datetime.datetime(2022, 3, 10, 9, 35))
-            await broker.sell(hljh, 9.94, 1500, datetime.datetime(2022, 3, 14, 10, 14))
+            await make_trades()
 
         with mock.patch(
             "arrow.now", return_value=datetime.datetime(2022, 3, 14, 9, 31)
@@ -378,6 +377,17 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertAlmostEqual(2000, assets - assets1)
             self.assertAlmostEqual(2000, cash - cash1)
+
+        # test get info at special date
+        broker = Broker("test", 1e6, 1e-4)
+        await make_trades()
+        info2 = await broker.info(datetime.date(2022, 3, 14))
+        assert_info_success(info2)
+
+        info3 = await broker.info(datetime.date(2022, 3, 9))
+        self.assertAlmostEqual(998186.88, info3["assets"], 2)
+        self.assertAlmostEqual(968836.88, info3["available"], 2)
+        self.assertAlmostEqual(29350.0, info3["market_value"], 2)
 
     def test_str_repr(self):
         broker = Broker("test", 1e6, 1e-4)
