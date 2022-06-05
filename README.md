@@ -1,13 +1,6 @@
 # zillionare-backtest
 
 
-<p align="center">
-<a href="https://pypi.python.org/pypi/zillionare-backtest">
-    <img src="https://img.shields.io/pypi/v/zillionare-backtest.svg"
-        alt = "Release Status">
-</a>
-</p>
-
 zillionare-backtest是大富翁的回测服务器，它跟[zillionare-omega](https://zillionare.github.io/omega/), [zillionare-omicron](https://zillionare.github.io/omicron), [zillionare-alpha](https://zillionare.github.io/alpha), [zillionare-trader-client](https://zillionare.github.io/traderclient)共同构成回测框架。
 
 zillionare-backtest的功能是提供账户管理、交易撮合和策略评估。zillionare-backtest使用omicron来提供撮合数据，但您也可以自写开发撮合数据的提供器[^1]。

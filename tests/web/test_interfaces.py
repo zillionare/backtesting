@@ -240,6 +240,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
     async def test_metrics(self, mocked_now):
+        # this also test get_assets
         hljh = "002537.XSHE"
 
         for price, volume, tm in [
@@ -310,6 +311,10 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         }
         assert_deep_almost_equal(self, exp, actual, places=2)
+
+        assets = await get("assets", self.token)
+        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
+        self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 14))
 
     async def test_protect_admin(self):
         """valid admin token is tested through other tests"""

@@ -36,6 +36,7 @@ from backtest.trade.datatypes import (
     daily_position_dtype,
     float_ts_dtype,
     position_dtype,
+    rich_assets_dtype,
 )
 from backtest.trade.trade import Trade
 
@@ -214,24 +215,41 @@ class Broker:
 
         return result[list(dtype.names)].astype(dtype)
 
-    async def recalc_assets(self):
-        # 重新计算资产。注意在某些操作中我们也会计算并缓存assets结果，但_assets表可能存在空洞或者不准确。
-        if self.mode == "bt":
-            end = self.bt_stop
-            start = self.bt_start
-        else:
-            end = arrow.now().date()
-            start = self._first_trade_date
-            if start is None:
-                return
+    async def recalc_assets(
+        self, start: datetime.date = None, end: datetime.date = None
+    ) -> np.ndarray:
+        """重新计算在[`start`, `end`]时间段内的资产
+
+        Args:
+            start (datetime.date, optional): 起始日期. Defaults to None.
+            end (datetime.date, optional): 结束日期. Defaults to None.
+
+        Returns:
+            np.ndarray: dtype为[backtest.trade.datatypes.rich_assets_dtype][]的numpy structured array
+        """
+        # todo: could we add lru_cache here?
+        start = start or self.account_start_date
+        if end is None:
+            if self.mode != "bt":  # 非回测下计算到当下
+                end = arrow.now().date()
+            else:  # 回测时计算到bt_stop
+                end = self.bt_stop
+
+        if any([start is None, end is None]):
+            return np.array([], dtype=rich_assets_dtype)
 
         # 把期初资产加进来
         _before_start = tf.day_shift(start, -1)
         self._assets = np.array([(_before_start, self.principal)], dtype=assets_dtype)
         frames = tf.get_frames(start, end, FrameType.DAY)
+
+        result = []
         for frame in frames:
             date = tf.int2date(frame)
-            await self._calc_assets(date)
+            assets, cash, mv = await self._calc_assets(date)
+            result.append((date, assets, cash, mv))
+
+        return np.array(result, dtype=rich_assets_dtype)
 
     async def info(self, dt: datetime.date = None) -> Dict:
         """`dt`日的账号相关信息

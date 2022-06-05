@@ -379,3 +379,39 @@ async def delete_accounts(request):
 
     if account_to_delete == request.ctx.broker.account_name:
         accounts.delete_accounts(account_to_delete)
+
+
+@bp.route("assets", methods=["GET"])
+@protected
+async def get_assets(request):
+    """获取账户资产信息
+
+    本方法主要为绘制资产收益曲线提供数据。
+
+    Args:
+        request Request: 以args方式传入，包含以下字段
+
+            - start: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则取账户起始日
+            - end: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则取最后交易日
+
+    Returns:
+
+        Response: 从`start`到`end`期间的账户资产信息，结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtpe][]
+
+    """
+    broker: Broker = request.ctx.broker
+
+    start = request.args.get("start")
+    if start:
+        start = arrow.get(start).date()
+    else:
+        start = broker.account_start_date
+
+    end = request.args.get("end")
+    if end:
+        end = arrow.get(end).date()
+    else:
+        end = broker.account_end_date
+
+    result = await broker.recalc_assets(start, end)
+    return response.raw(pickle.dumps(result))

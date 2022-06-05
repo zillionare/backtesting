@@ -100,5 +100,43 @@ position_dtype = np.dtype(
 """
 
 assets_dtype = np.dtype([("date", "O"), ("assets", "<f8")])
+"""the assets dtype as the following:
+
+    ```
+    np.dtype(
+        [
+            ("date", "O"),
+            ("assets", "<f8")
+        ]
+    )
+"""
 
 float_ts_dtype = np.dtype([("date", "O"), ("value", "<f8")])
+"""generic date-float dtype as the following:
+
+    ```
+    np.dtype(
+        [
+            ("date", "O"),
+            ("value", "<f8")
+        ]
+    )
+"""
+
+rich_assets_dtype = np.dtype(
+    [("date", "O"), ("assets", "<f8"), ("cash", "<f8"), ("mv", "<f8")]
+)
+"""the rich assets dtype as the following:
+
+    ```
+    np.dtype(
+        [
+            ("date", "O"),
+            ("assets", "<f8"),
+            ("cash", "<f8"),
+            ("mv", "<f8")
+        ]
+    )
+    ```
+
+"""
