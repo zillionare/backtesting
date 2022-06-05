@@ -4,5 +4,5 @@
 
 * First release on PyPI.
 
-## 0.3.3 (2022-06-05)
+## 0.4 (2022-06-05)
 * add get_assets interface
