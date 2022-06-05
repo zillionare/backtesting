@@ -10,7 +10,7 @@ docker build --build-arg version=$version --build-arg wheel=$wheel . -t backtest
 
 # test the image
 docker run -d --name bt -v ~/zillionare/backtest/config:/config -p 7080:7080 backtest
-response=`timeout 10s curl -sSf http://localhost:7080/`
+response=`timeout 20s curl -sSf http://localhost:7080/`
 
 if [[ "$response" == *"Welcome"* ]]; then
     echo "backtest image is good"
