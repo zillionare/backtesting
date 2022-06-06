@@ -278,19 +278,19 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         # 余额不足： 尽可能卖出
         bid_price, bid_shares, bid_time = (
-            12.33,
+            11.1,
             1100,
-            datetime.datetime(2022, 3, 10, 9, 35),
+            datetime.datetime(2022, 3, 11, 11, 30),
         )
         result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
 
         positions = np.array(
-            [("002537.XSHE", 2000.0, 1000, 9.02), ("603717.XSHG", 0.0, 0.0, 0)],
+            [("002537.XSHE", 2000.0, 1000, 9.02), ("603717.XSHG", 400, 400, 14.81)],
             position_dtype,
         )
         self._check_position(broker, positions, mar10.date())
-        self.assertAlmostEqual(999_568.93, broker.assets, 2)
-        self.assertAlmostEqual(980_208.93, broker.cash, 2)
+        self.assertAlmostEqual(999_501.02, broker.assets, 2)
+        self.assertAlmostEqual(979_301.02, broker.cash, 2)
 
         # 成交量不足撮合委卖
         broker = Broker("test", 1e10, 1e-4)
@@ -429,13 +429,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "total_profit": -404.0999999998603,
             "total_profit_rate": -0.0004040999999998603,
             "win_rate": 0.5555555555555556,
-            "mean_return": -3.5424533908913105e-05,
-            "sharpe": -1.4394071953833119,
-            "sortino": -2.0995041008390016,
-            "calmar": -2.2035107348487686,
+            "mean_return": -3.896698729980441e-05,
+            "sharpe": -1.396890251070207,
+            "sortino": -2.0486727998320817,
+            "calmar": -2.422741706100782,
             "max_drawdown": -0.0041827334569883405,
-            "annual_return": -0.009216698073484908,
-            "volatility": 0.02704375986857556,
+            "annual_return": -0.010133682791748755,
+            "volatility": 0.02850594795764624,
             "baseline": {
                 "code": "002537.XSHE",
                 "win_rate": 0.5555555555555556,
@@ -471,17 +471,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
         await broker.buy(tyst, 14.84, 1500, datetime.datetime(2022, 3, 7, 9, 31))
 
-        self.assertListEqual(
-            [
-                datetime.date(2022, 3, 1),
-                datetime.date(2022, 3, 4),
-                datetime.date(2022, 3, 7),
-            ],
-            broker._assets["date"].tolist(),
-        )
+        self.assertEqual(6, broker._assets.size)
+        self.assertEqual(datetime.date(2022, 2, 28), broker._assets[0]["date"])
+        self.assertEqual(datetime.date(2022, 3, 7), broker._assets[-1]["date"])
 
         self.assertListEqual(
             [
+                datetime.date(2022, 2, 28),
                 datetime.date(2022, 3, 1),
                 datetime.date(2022, 3, 2),
                 datetime.date(2022, 3, 3),
@@ -562,9 +558,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertListEqual([1e6] * 11, broker._assets["assets"].tolist())
 
+        broker = Broker("test", 1e6, 1e-4, bt_start, bt_stop)
         await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
         await broker.buy(tyst, 14.84, 1500, datetime.datetime(2022, 3, 7, 9, 31))
 
+        # should have assets up to 2022, 3, 7
+        self.assertEqual(6, broker._assets.size)
+        self.assertEqual(datetime.date(2022, 3, 7), broker._assets[-1]["date"])
         await broker.recalc_assets()
 
         exp = np.array(
@@ -617,28 +617,6 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 exp["assets"], broker._assets["assets"], decimal=2
             )
 
-            broker._assets = np.array([], dtype=assets_dtype)
-            await broker.sell(hljh, 8.2, 500, datetime.datetime(2022, 3, 7, 9, 31))
-            await broker.sell(tyst, 14.28, 1500, datetime.datetime(2022, 3, 8, 9, 31))
-            await broker.recalc_assets()
-
-            exp = np.array(
-                [
-                    (datetime.date(2022, 3, 3), 1e6),
-                    (datetime.date(2022, 3, 4), 999864.51),
-                    (datetime.date(2022, 3, 7), 999861.82),
-                    (datetime.date(2022, 3, 8), 999859.59),
-                    (datetime.date(2022, 3, 9), 999859.59),
-                    (datetime.date(2022, 3, 10), 999859.59),
-                ],
-                dtype=[("date", "O"), ("assets", "<f8")],
-            )
-
-            np.testing.assert_array_equal(exp["date"], broker._assets["date"])
-            np.testing.assert_array_almost_equal(
-                exp["assets"], broker._assets["assets"], decimal=2
-            )
-
     async def test_update_positions(self):
         start = datetime.date(2022, 3, 1)
         end = datetime.date(2022, 3, 14)
@@ -658,3 +636,18 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
 
         await broker._update_positions(trade, bid_time.date())
+
+    async def test_calendar_validation(self):
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        broker = Broker("test", 1_000_000, 1e-4, start, end)
+
+        await broker.buy(
+            "002537.XSHE", 10.03, 500, datetime.datetime(2022, 3, 4, 9, 32)
+        )
+
+        with self.assertRaises(EntrustError) as cm:
+            await broker.buy(
+                "002537.XSHE", 14.84, 1500, datetime.datetime(2022, 3, 4, 9, 31)
+            )
+        self.assertEqual(cm.exception.status_code, EntrustError.TIME_REWIND)

@@ -3,7 +3,7 @@
 from enum import IntEnum
 
 
-class Error(Exception):
+class BacktestError(BaseException):
     """错误基类"""
 
     def __init__(self, message: str, *args):
@@ -14,20 +14,23 @@ class Error(Exception):
         return f"{self.message}: {self.args}"
 
 
-class BadParameterError(Error):
+class BadParameterError(BacktestError):
     """参数错误"""
 
     pass
 
 
-class AccountError(Error):
+class AccountError(BacktestError):
     """账户冲突，或者已冻结"""
 
+    def __init__(self, msg: str = None):
+        self.msg = msg or "账户冲突，或者已冻结"
+
     def __str__(self):
-        return "账户冲突，或者已冻结"
+        return self.msg
 
 
-class EntrustError(Error):
+class EntrustError(BacktestError):
     """交易过程中发生的异常"""
 
     GENERIC_ERROR = -1
@@ -38,6 +41,7 @@ class EntrustError(Error):
     PRICE_NOT_MEET = -6
     NODATA_FOR_MATCH = -7
     NODATA = -8
+    TIME_REWIND = -9
 
     def __init__(self, status_code: int, **kwargs):
         self.status_code = status_code
@@ -53,4 +57,5 @@ class EntrustError(Error):
             EntrustError.PRICE_NOT_MEET: "{security}现价未达到委托价:{entrust}",
             EntrustError.NODATA_FOR_MATCH: "没有匹配到{security}在{time}的成交数据",
             EntrustError.NODATA: "获取{security}在{time}的行情数据失败，请检查日期是否为交易日，或者当天是否停牌",
+            EntrustError.TIME_REWIND: "委托时间必须递增出现。当前{time}, 前一个委托时间{last_trade_time}",
         }.get(self.status_code)

@@ -4,13 +4,14 @@ import pickle
 import arrow
 import pkg_resources
 from omicron import math_round
+from omicron.extensions.np import numpy_append_fields
 from sanic import response
 from sanic.blueprints import Blueprint
 
 from backtest.common.errors import AccountError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
-from backtest.trade.datatypes import position_dtype
+from backtest.trade.datatypes import position_dtype, rich_assets_dtype
 
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
@@ -79,6 +80,25 @@ async def start_backtest(request):
         return response.json(jsonify(result))
     except AccountError as e:
         return response.text(e.message, status=499)
+
+
+@bp.route("stop_backtest", methods=["POST"])
+@protected
+async def stop_backtest(request):
+    """结束回测
+
+    结束回测后，账户将被冻结，此后将不允许进行任何操作
+
+    # todo: 增加持久化操作
+
+    """
+    broker = request.ctx.broker
+    if broker.mode != "bt":
+        raise AccountError("在非回测账户上试图执行不允许的操作")
+
+    if not broker._bt_stopped:
+        broker._bt_stopped = True
+        await broker.recalc_assets()
 
 
 @bp.route("accounts", methods=["GET"])
@@ -284,6 +304,7 @@ async def info(request):
         - assets: float, 当前资产
         - start: datetime.date, 账户创建时间
         - last_trade: datetime.date, 最后一笔交易日期
+        - end: 账户结束时间，仅对回测模式有效
         - available: float, 可用资金
         - market_value: 股票市值
         - pnl: 盈亏(绝对值)
@@ -351,7 +372,9 @@ async def bills(request):
         position_dtype
     )
 
-    await broker.recalc_assets()
+    if not (broker.mode == "bt" and broker._bt_stopped):
+        await broker.recalc_assets()
+
     results["assets"] = broker._assets
     return response.json(jsonify(results))
 
@@ -413,5 +436,13 @@ async def get_assets(request):
     else:
         end = broker.account_end_date
 
-    result = await broker.recalc_assets(start, end)
+    if not (broker.mode == "bt" and broker._bt_stopped):
+        await broker.recalc_assets(end)
+
+    cash = broker._cash["cash"]
+    mv = broker._assets["assets"] - broker._cash["cash"]
+    result = numpy_append_fields(
+        broker._assets, ["cash", "mv"], [cash, mv], [("cash", "f8"), ("mv", "f8")]
+    ).astype(rich_assets_dtype)
+
     return response.raw(pickle.dumps(result))

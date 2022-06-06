@@ -20,6 +20,7 @@ from empyrical import (
     sortino_ratio,
 )
 from omicron import array_price_equal, math_round, price_equal
+from omicron.extensions.np import numpy_append_fields
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
@@ -77,8 +78,8 @@ class Broker:
             self.bt_stop = None
 
         # 最后交易时间
-        self._last_trade_date = None
-        self._first_trade_date = None
+        self._last_trade_time: datetime.datetime = None
+        self._first_trade_time: datetime.datetime = None
 
         self.account_name = account_name
         self.commission = commission
@@ -128,19 +129,31 @@ class Broker:
 
     @property
     def account_start_date(self) -> datetime.date:
-        return self.bt_start or self._first_trade_date
+        if self.mode == "bt":
+            return self.bt_start
+        else:
+            return (
+                None
+                if self._first_trade_time is None
+                else self._first_trade_time.date()
+            )
 
     @property
     def account_end_date(self) -> datetime.date:
-        return self.bt_stop or self._last_trade_date
+        if self.mode == "bt":
+            return self.bt_stop
+        else:
+            return (
+                None if self._last_trade_time is None else self._last_trade_time.date()
+            )
 
     @property
     def last_trade_date(self):
-        return self._last_trade_date
+        return None if self._last_trade_time is None else self._last_trade_time.date()
 
     @property
     def first_trade_date(self):
-        return self._first_trade_date
+        return None if self._first_trade_time is None else self._first_trade_time.date()
 
     def get_cash(self, dt: datetime.date) -> float:
         """获取`dt`当天的可用资金
@@ -215,41 +228,39 @@ class Broker:
 
         return result[list(dtype.names)].astype(dtype)
 
-    async def recalc_assets(
-        self, start: datetime.date = None, end: datetime.date = None
-    ) -> np.ndarray:
-        """重新计算在[`start`, `end`]时间段内的资产
+    async def recalc_assets(self, end: datetime.date = None):
+        """重新计算账户的每日资产
+
+        计算完成后，资产表将包括从账户开始前一日，到`end`日的资产数据。从账户开始前一日起，是为了方便计算首个交易日的收益。
 
         Args:
-            start (datetime.date, optional): 起始日期. Defaults to None.
-            end (datetime.date, optional): 结束日期. Defaults to None.
+            end: 计算到哪一天的资产，默认为空，即计算到最后一个交易日（非回测），或者回测结束日。
 
-        Returns:
-            np.ndarray: dtype为[backtest.trade.datatypes.rich_assets_dtype][]的numpy structured array
         """
-        # todo: could we add lru_cache here?
-        start = start or self.account_start_date
         if end is None:
             if self.mode != "bt":  # 非回测下计算到当下
                 end = arrow.now().date()
             else:  # 回测时计算到bt_stop
                 end = self.bt_stop
 
-        if any([start is None, end is None]):
-            return np.array([], dtype=rich_assets_dtype)
-
         # 把期初资产加进来
-        _before_start = tf.day_shift(start, -1)
-        self._assets = np.array([(_before_start, self.principal)], dtype=assets_dtype)
-        frames = tf.get_frames(start, end, FrameType.DAY)
+        if self._assets.size == 0:
+            start = self.account_start_date
+            if start is None:
+                return np.array([], dtype=rich_assets_dtype)
 
-        result = []
-        for frame in frames:
+            _before_start = tf.day_shift(start, -1)
+            self._assets = np.array(
+                [(_before_start, self.principal)], dtype=assets_dtype
+            )
+
+        start = tf.day_shift(self._assets[-1]["date"], 1)
+        if start >= end:
+            return
+
+        for frame in tf.get_frames(start, end, FrameType.DAY):
             date = tf.int2date(frame)
-            assets, cash, mv = await self._calc_assets(date)
-            result.append((date, assets, cash, mv))
-
-        return np.array(result, dtype=rich_assets_dtype)
+            await self._calc_assets(date)
 
     async def info(self, dt: datetime.date = None) -> Dict:
         """`dt`日的账号相关信息
@@ -261,6 +272,8 @@ class Broker:
             - principal: float, 初始资金
             - assets: float, `dt`日资产
             - start: datetime.date, 账户创建时间
+            - end: 账户结束时间，仅在回测模式下有效
+            - bt_stopped: 回测是否结束，仅在回测模式下有效。
             - last_trade: datetime.datetime, 最后一笔交易时间
             - available: float, `dt`日可用资金
             - market_value: `dt`日股票市值
@@ -269,7 +282,7 @@ class Broker:
             - positions: 当前持仓，dtype为position_dtype的numpy structured array
 
         """
-        dt = dt or self._last_trade_date
+        dt = dt or self.last_trade_date
 
         cash = self.get_cash(dt)
         assets = await self.get_assets(dt)
@@ -278,6 +291,8 @@ class Broker:
             "name": self.account_name,
             "principal": self.principal,
             "start": self.account_start_date,
+            "end": self.bt_stop,
+            "bt_stopped": self._bt_stopped,
             "last_trade": self.last_trade_date,
             "assets": assets,
             "available": cash,
@@ -288,10 +303,7 @@ class Broker:
         }
 
     async def get_returns(
-        self,
-        start_date: datetime.date = None,
-        end_date: datetime.date = None,
-        recalc_assets: bool = True,
+        self, start_date: datetime.date = None, end_date: datetime.date = None
     ) -> np.ndarray:
         """求截止`end_date`时的每日回报
 
@@ -311,7 +323,7 @@ class Broker:
         assert self.account_start_date <= start <= end
         assert start <= end <= self.account_end_date
 
-        if recalc_assets:
+        if not self._bt_stopped:
             await self.recalc_assets()
 
         assets = self._assets[
@@ -321,11 +333,7 @@ class Broker:
         if assets.size == 0:
             raise ValueError(f"date range error: {start} - {end} contains no data")
 
-        assets = assets.astype(float_ts_dtype)
-        assets["value"][1:] = assets["value"][1:] / assets["value"][:-1] - 1
-        assets["value"][0] = 0
-
-        return assets
+        return assets["assets"][1:] / assets["assets"][:-1] - 1
 
     @property
     def assets(self) -> float:
@@ -352,6 +360,9 @@ class Broker:
         """
         if self._assets.size == 0:
             return self.principal
+
+        if date is None:
+            return self._assets[-1]["assets"]
 
         result = self._assets[self._assets["date"] == date]
         if result.size == 1:
@@ -454,28 +465,41 @@ class Broker:
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>{self}"
 
-    def _calendar_validation(self, bid_time: datetime.date):
+    async def _calendar_validation(self, bid_time: datetime.datetime):
         """更新和校准交易日期
+
+        如果是回测模式，则在进入_bt_stopped状态时,还要完整计算一次assets,此后不再重复计算。
 
         Args:
             bid_time : 交易发生的时间
         """
-        if self._first_trade_date is None:
-            self._first_trade_date = bid_time
-        elif bid_time < self._first_trade_date:
-            logger.warning("委托日期必须递增出现: %s -> %s", self._first_trade_date, bid_time)
-            raise ValueError(f"委托日期必须递增出现, {bid_time} -> {self._first_trade_date}")
+        if self.mode == "bt" and self._bt_stopped:
+            logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
+            raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
 
-        if self._last_trade_date is None or bid_time >= self._last_trade_date:
-            self._last_trade_date = bid_time
-        else:
-            logger.warning("委托日期必须递增出现：%s -> %s", self._last_trade_date, bid_time)
-            raise ValueError(
-                f"委托日期必须递增出现, {self._last_trade_date} -> {self._last_trade_date}"
+        if self._first_trade_time is None:
+            self._first_trade_time = bid_time
+        elif bid_time < self._first_trade_time:
+            logger.warning("委托时间必须递增出现: %s -> %s", self._first_trade_time, bid_time)
+            raise EntrustError(
+                EntrustError.TIME_REWIND,
+                time=bid_time,
+                last_trade_time=self._first_trade_time,
             )
 
-        if self.mode == "bt" and bid_time > self.bt_stop:
+        if self._last_trade_time is None or bid_time >= self._last_trade_time:
+            self._last_trade_time = bid_time
+        else:
+            logger.warning("委托时间必须递增出现：%s -> %s", self._last_trade_time, bid_time)
+            raise EntrustError(
+                EntrustError.TIME_REWIND,
+                time=bid_time,
+                last_trade_time=self._last_trade_time,
+            )
+
+        if self.mode == "bt" and bid_time.date() > self.bt_stop:
             self._bt_stopped = True
+            await self.recalc_assets()
             logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
             raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
 
@@ -510,6 +534,10 @@ class Broker:
         entrustlog.info(
             f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.BUY}"
         )
+        assert (
+            type(bid_time) is datetime.datetime
+        ), f"{bid_time} is not type of datetime"
+
         await self._before_trade(bid_time)
 
         feed = get_app_context().feed
@@ -684,30 +712,32 @@ class Broker:
 
         # 当发生新的买入时，更新资产
         cash_change = -1 * (money + fee)
-        await self._update_assets(cash_change, close_time.date())
+        await self._update_assets(cash_change, close_time)
 
         await emit.emit(E_BACKTEST, {"buy": jsonify(trade)})
         return trade
 
-    async def _before_trade(self, bid_time: Frame):
+    async def _before_trade(self, bid_time: datetime.datetime):
         """交易前的准备工作
 
-        在每次交易前，补齐每日现金数据和持仓数据到`date`，更新账户生命期等。
+        在每次交易前，补齐每日现金数据和持仓数据到`bid_time`，更新账户生命期等。
 
         Args:
-            date: 日期
+            bid_time: 委托时间
 
         Returns:
             无
         """
-        if type(bid_time) == datetime.datetime:
-            bid_time = bid_time.date()
-
-        self._calendar_validation(bid_time)
+        await self._calendar_validation(bid_time)
 
         # 补齐可用将资金表
-        if self._cash.size > 0:
-            assert bid_time >= self._cash[0]["date"]
+        if self._cash.size == 0:
+            start = tf.day_shift(self.account_start_date, -1)
+            end = bid_time.date()
+            frames = tf.get_frames(start, end, FrameType.DAY)
+            _cash = [(tf.int2date(frame), self.principal) for frame in frames]
+            self._cash = np.array(_cash, dtype=cash_dtype)
+        else:
             last_dt, cash = self._cash[-1]
 
             frames = tf.get_frames(last_dt, bid_time, FrameType.DAY)[1:]
@@ -723,9 +753,6 @@ class Broker:
 
         if self._positions.size == 0:
             return
-
-        assert bid_time >= self._positions[0]["date"]
-        assert last_dt == self._positions[-1]["date"], "可用资金表与持仓表不同步"
 
         last_dt = self._positions[-1]["date"]
 
@@ -826,32 +853,39 @@ class Broker:
 
         return
 
-    async def _update_assets(self, cash_change: float, dt: datetime.date):
+    async def _update_assets(self, cash_change: float, bid_time: datetime.datetime):
         """更新当前资产（含持仓）
 
-        在每次资产变动时进行计算和更新。
+        在每次资产变动时进行计算和更新，并对之前的资产表进行补全。
 
         Args:
             cash_change : 变动的现金
-            dt: 当前资产（持仓）所属于的日期
+            bid_time: 委托时间
         """
         logger.info("cash change: %s", cash_change)
-        if type(dt) == datetime.datetime:
-            dt = dt.date()
 
-        if self._cash.size == 0:
-            self._cash = np.array(
-                [(dt, self.principal + cash_change)], dtype=cash_dtype
+        # 补齐资产表到上一个交易日
+        if self._assets.size == 0:
+            _before_start = tf.day_shift(self.account_start_date, -1)
+            self._assets = np.array(
+                [(_before_start, self.principal)], dtype=assets_dtype
             )
-        else:
-            # _before_trade应该已经为当日交易准备好了可用资金数据
-            assert self._cash[-1]["date"] == dt
-            self._cash[-1]["cash"] += cash_change
 
-        assets, cash, mv = await self._calc_assets(dt)
+        start = tf.day_shift(self._assets[-1]["date"], 1)
+        end = tf.day_shift(bid_time, -1)
+        if start < end:
+            await self.recalc_assets(end)
+
+        bid_time = bid_time.date()
+
+        # _before_trade应该已经为当日交易准备好了可用资金数据
+        assert self._cash[-1]["date"] == bid_time
+        self._cash[-1]["cash"] += cash_change
+
+        assets, cash, mv = await self._calc_assets(bid_time)
 
         info = np.array(
-            [(dt, assets, cash, mv, cash_change)],
+            [(bid_time, assets, cash, mv, cash_change)],
             dtype=[
                 ("date", "O"),
                 ("assets", float),
@@ -937,7 +971,7 @@ class Broker:
             tabulate_numpy_array(self.get_position(dt, daily_position_dtype)),
         )
 
-        await self._update_assets(refund, en.bid_time.date())
+        await self._update_assets(refund, en.bid_time)
 
         await emit.emit(E_BACKTEST, {"sell": jsonify(exit_trades)})
         return exit_trades
@@ -1198,13 +1232,14 @@ class Broker:
         # win_rate
         wr = len([t for t in tx if t.profit > 0]) / total_tx
 
-        await self.recalc_assets()
+        if not self._bt_stopped:
+            await self.recalc_assets()
 
         # 当计算[start, end]之间的盈亏时，我们实际上要多取一个交易日，即start之前一个交易日的资产数据
         _start = tf.day_shift(start, -1)
         total_profit = await self.get_assets(end) - await self.get_assets(_start)
 
-        returns = (await self.get_returns(start, end, False))["value"]
+        returns = await self.get_returns(start, end)
         mean_return = np.mean(returns)
 
         sharpe = sharpe_ratio(returns, rf)

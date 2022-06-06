@@ -7,7 +7,7 @@ from unittest import mock
 import arrow
 import cfg4py
 
-from backtest.common.errors import Error
+from backtest.common.errors import BacktestError
 from tests import (
     assert_deep_almost_equal,
     data_populate,
@@ -252,7 +252,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             (9.57, 500, "2022-03-08 09:31:00"),
             (9.08, 500, "2022-03-09 09:31:00"),
             (9.1, 500, "2022-03-10 09:31:00"),
-            (9.65, 500, "2022-03-11 09:31:00"),  # 这一笔不会成交
+            (9.68, 500, "2022-03-11 09:31:00"),
             (9.65, 500, "2022-03-14 09:31:00"),
         ]:
             try:
@@ -268,7 +268,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                         "request_id": uuid.uuid4().hex,
                     },
                 )
-            except Error:
+            except BacktestError:
                 pass
 
         await post(
@@ -288,17 +288,17 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             "start": datetime.date(2022, 3, 1),
             "end": datetime.date(2022, 3, 14),
             "window": 10,
-            "total_tx": 8,
-            "total_profit": -343.13999999978114,
-            "total_profit_rate": -0.0003431399999997811,
-            "win_rate": 0.625,
-            "mean_return": -2.9972019661695835e-05,
-            "sharpe": -1.439194474227825,
-            "sortino": -2.1212244527176227,
-            "calmar": -1.8723514035186801,
+            "total_tx": 9,
+            "total_profit": -404.0999999998603,
+            "total_profit_rate": -0.0004040999999998603,
+            "win_rate": 0.5555555555555556,
+            "mean_return": -3.896698729980441e-05,
+            "sharpe": -1.396890251070207,
+            "sortino": -2.0486727998320817,
+            "calmar": -2.422741706100782,
             "max_drawdown": -0.0041827334569883405,
-            "annual_return": -0.00783154685873666,
-            "volatility": 0.026093033031478072,
+            "annual_return": -0.010133682791748755,
+            "volatility": 0.02850594795764624,
             "baseline": {
                 "code": "002537.XSHE",
                 "win_rate": 0.5555555555555556,
@@ -313,7 +313,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         assert_deep_almost_equal(self, exp, actual, places=2)
 
         assets = await get("assets", self.token)
-        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
+        self.assertEqual(assets["date"][0], datetime.date(2022, 2, 28))
         self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 14))
 
     async def test_protect_admin(self):
@@ -376,7 +376,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await delete("accounts", self.token, params={"name": self.name})
 
     async def test_frozen_accounts(self):
-        with self.assertRaises(Error) as cm:
+        with self.assertRaises(BacktestError) as cm:
             await post(
                 "buy",
                 self.token,
@@ -390,3 +390,16 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 },
             )
         self.assertTrue(str(cm.exception).find("冻结") > 0)
+
+    async def test_stop_backtest(self):
+        info = await get("info", self.token)
+        self.assertEqual(info["bt_stopped"], False)
+
+        with self.assertRaises(BacktestError) as cm:
+            await post("stop_backtest", self.admin_token, data={})
+
+        self.assertEqual(cm.exception.msg, "在非回测账户上试图执行不允许的操作")
+
+        await post("stop_backtest", self.token, data={})
+        info = await get("info", self.token)
+        self.assertEqual(info["bt_stopped"], True)

@@ -18,7 +18,7 @@ from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame
 
 from backtest.app import application as app
-from backtest.common.errors import Error
+from backtest.common.errors import BacktestError
 from backtest.config import endpoint, get_config_dir
 from backtest.web.interfaces import bp
 
@@ -56,7 +56,7 @@ async def delete(cmd: str, token: str, params=None):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise Error(response.status, response.text)
+        raise BacktestError(response.status, response.text)
 
 
 async def post(cmd: str, token: str, data):
@@ -74,7 +74,7 @@ async def post(cmd: str, token: str, data):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise Error(response.status, response.text)
+        raise BacktestError(response.status, response.text)
 
 
 async def get(cmd: str, token: str, **kwargs):
@@ -93,7 +93,7 @@ async def get(cmd: str, token: str, **kwargs):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise Error(response.status, response.text)
+        raise BacktestError(response.status, response.text)
 
 
 def data_dir():
