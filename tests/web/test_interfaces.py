@@ -313,7 +313,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         assert_deep_almost_equal(self, exp, actual, places=2)
 
         assets = await get("assets", self.token)
-        self.assertEqual(assets["date"][0], datetime.date(2022, 2, 28))
+        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
         self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 14))
 
     async def test_protect_admin(self):

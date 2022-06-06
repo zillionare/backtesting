@@ -28,7 +28,6 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         _, response = await app.asgi_client.get("/")
 
         self.assertEqual(response.status, 200)
-        self.assertEqual(
-            response.text,
-            f"Welcome to zillionare bactest server. The endpoints is {endpoint()}",
+        self.assertSetEqual(
+            set(response.json.keys()), set(["greetings", "version", "endpoint"])
         )

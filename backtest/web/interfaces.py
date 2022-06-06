@@ -100,6 +100,8 @@ async def stop_backtest(request):
         broker._bt_stopped = True
         await broker.recalc_assets()
 
+    return response.text("ok")
+
 
 @bp.route("accounts", methods=["GET"])
 @protected_admin
@@ -441,8 +443,10 @@ async def get_assets(request):
 
     cash = broker._cash["cash"]
     mv = broker._assets["assets"] - broker._cash["cash"]
+
+    # both _cash and _assets has been moved backward one day
     result = numpy_append_fields(
         broker._assets, ["cash", "mv"], [cash, mv], [("cash", "f8"), ("mv", "f8")]
-    ).astype(rich_assets_dtype)
+    ).astype(rich_assets_dtype)[1:]
 
     return response.raw(pickle.dumps(result))

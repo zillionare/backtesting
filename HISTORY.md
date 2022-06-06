@@ -11,7 +11,8 @@
 ## 0.4 (2022-06-05)
 * add get_assets interface
 
-## 0.4.1
+## 0.4.1 (2022-06-06)
 * 在datetime（而不是date)级别上限制委托时间必须严格递增。
 * 增加stop_backtest接口
 * 性能改进：将计算资产(assets)的时间进行分摊，以便回测结束时，可以更快得到metrics
+* the root '/' path will now display greeting message along with endpoint information in json.
