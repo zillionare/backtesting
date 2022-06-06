@@ -2,6 +2,7 @@ import logging
 import pickle
 
 import arrow
+import numpy as np
 import pkg_resources
 from omicron import math_round
 from omicron.extensions.np import numpy_append_fields
@@ -441,8 +442,15 @@ async def get_assets(request):
     if not (broker.mode == "bt" and broker._bt_stopped):
         await broker.recalc_assets(end)
 
-    cash = broker._cash["cash"]
-    mv = broker._assets["assets"] - broker._cash["cash"]
+    # cash may be shorter than assets
+    if broker._cash.size < broker._assets.size:
+        n = broker._assets.size - broker._cash.size
+        cash = np.pad(broker._cash, (0, n), "edge")
+    else:
+        cash = broker._cash
+
+    cash = cash["cash"]
+    mv = broker._assets["assets"] - cash
 
     # both _cash and _assets has been moved backward one day
     result = numpy_append_fields(
