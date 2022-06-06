@@ -11,7 +11,7 @@ from sanic import Sanic, response
 from backtest.config import endpoint, get_config_dir
 from backtest.feed.basefeed import BaseFeed
 from backtest.web.accounts import Accounts
-from backtest.web.interfaces import bp
+from backtest.web.interfaces import bp, ver
 
 application = Sanic("backtest")
 logger = logging.getLogger(__name__)
@@ -19,8 +19,12 @@ logger = logging.getLogger(__name__)
 
 @application.route("/")
 async def root(request):
-    return response.text(
-        f"Welcome to zillionare bactest server. The endpoints is {bp.url_prefix}"
+    return response.json(
+        {
+            "greetings": "欢迎使用大富翁回测系统！",
+            "version": ver.base_version,
+            "endpoint": bp.url_prefix,
+        }
     )
 
 
