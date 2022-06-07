@@ -60,12 +60,19 @@ class ZillionareFeed(BaseFeed):
         if len(prices):
             return prices[0]
         else:
+            logger.warning("get_trade_price_limits failed for %s:%s", sec, date)
             raise EntrustError(EntrustError.NODATA, security=sec, time=date)
 
     async def calc_xr_xd(
         self, sec: str, start: datetime.date, end: datetime.date, shares: int
     ) -> float:
-        bars = await Stock.get_bars_in_range(sec, FrameType.DAY, start, end, fq=False)
-        factor = (bars[-1]["factor"] / bars[0]["factor"]) - 1
-        dr = math_round(bars[0]["close"].item(), 2) * shares * factor
-        return dr
+        try:
+            bars = await Stock.get_bars_in_range(
+                sec, FrameType.DAY, start, end, fq=False
+            )
+            factor = (bars[-1]["factor"] / bars[0]["factor"]) - 1
+            dr = math_round(bars[0]["close"].item(), 2) * shares * factor
+            return dr
+        except Exception:
+            logger.warning("calc_xr_xd failed for %s:%s ~ %s", sec, start, end)
+            raise

@@ -1,5 +1,7 @@
 """Main module."""
 import logging
+import os
+import sys
 
 import cfg4py
 import fire
@@ -36,7 +38,10 @@ async def application_init(app, *args):
         logger.warning(
             "omicron running in degrade mode, this may cause inaccurate results due to calendar issues"
         )
-        TimeFrame.service_degrade()
+        if os.environ.get(cfg4py.envar) == "DEV":
+            TimeFrame.service_degrade()
+        else:
+            sys.exit(-1)
 
     cfg = cfg4py.get_instance()
     await emit.start(emit.Engine.REDIS, start_server=True, dsn=cfg.redis.dsn)

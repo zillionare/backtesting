@@ -9,7 +9,7 @@ from omicron.extensions.np import numpy_append_fields
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import AccountError
+from backtest.common.errors import AccountError, EntrustError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
 from backtest.trade.datatypes import position_dtype, rich_assets_dtype
@@ -230,7 +230,11 @@ async def sell_percent(request):
     assert 0 < percent <= 1.0, "percent must be between 0 and 1.0"
     broker: Broker = request.ctx.broker
     position = broker.get_position(order_time.date())
-    sellable = position[position["security"] == security][0]["sellable"]
+    sellable = position[position["security"] == security]
+    if sellable.size == 0:
+        raise EntrustError(EntrustError.NO_POSITION, security=security, time=order_time)
+
+    sellable = sellable[0]["sellable"]
 
     volume = math_round(sellable * percent / 100, 0) * 100
 
