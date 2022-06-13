@@ -258,9 +258,44 @@ class Broker:
         if start >= end:
             return
 
-        for frame in tf.get_frames(start, end, FrameType.DAY):
-            date = tf.int2date(frame)
-            await self._calc_assets(date)
+        # 待补齐的资产日
+        frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
+        # 从最后一个资产日到`end`，持仓应都是一样的
+        position = self.get_position(end, position_dtype)
+        if position.size == 0:
+            assets = self._assets[-1]["assets"]
+            self._assets = np.concatenate(
+                (
+                    self._assets,
+                    np.array([(frame, assets) for frame in frames], dtype=assets_dtype),
+                )
+            )
+
+            return
+
+        secs = position["security"]
+        shares = {sec: share for sec, share in zip(secs, position["shares"])}
+
+        feed = get_app_context().feed
+        closes = await feed.batch_get_close_price_in_range(secs, frames)
+
+        for frame in frames:
+            cash = self.get_cash(frame)
+
+            mv = 0
+            for sec in secs:
+                iclose = self._index_of(closes[sec], frame, "frame")
+                mv += closes[sec][iclose]["close"] * shares.get(sec, 0)
+
+            i = self._index_of(self._assets, frame)
+            if i is None:
+                self._assets = np.append(
+                    self._assets,
+                    np.array([(frame, float(cash + mv))], dtype=assets_dtype),
+                    axis=0,
+                )
+            else:
+                self._assets[i]["cash"] = float(cash + mv)
 
     async def info(self, dt: datetime.date = None) -> Dict:
         """`dt`日的账号相关信息
@@ -371,19 +406,21 @@ class Broker:
         assets, *_ = await self._calc_assets(date)
         return assets
 
-    def _index_of(self, arr: np.ndarray, date: datetime.date) -> int:
-        """查找`arr`中其`date`字段等于`date`的索引
+    def _index_of(
+        self, arr: np.ndarray, date: datetime.date, index: str = "date"
+    ) -> int:
+        """查找`arr`中其`index`字段等于`date`的索引
 
             注意数组中`date`字段取值必须惟一。
 
         Args:
-            arr: numpy array, 需要存在`date`字段
+            arr: numpy array, 需要存在`index`字段
             date: datetime.date, 查找的日期
 
         Returns:
             如果存在，返回索引，否则返回None
         """
-        pos = np.argwhere(arr["date"] == date).ravel()
+        pos = np.argwhere(arr[index] == date).ravel()
 
         assert len(pos) <= 1, "date should be unique"
         if len(pos) == 0:
@@ -395,7 +432,7 @@ class Broker:
         """计算某日的总资产，并缓存
 
         Args:
-            date : 计算哪一天的资产
+            date: 计算哪一天的资产
 
         Returns:
             返回总资产, 可用资金, 持仓市值
@@ -416,9 +453,9 @@ class Broker:
         if heldings.size > 0:
             feed = get_app_context().feed
 
-            prices = await feed.get_close_price(heldings, date)
-            for code, price in prices.items():
-                shares = positions[positions["security"] == code]["shares"].item()
+            for sec in heldings:
+                price = await feed.get_close_price(sec, date)
+                shares = positions[positions["security"] == sec]["shares"].item()
                 market_value += shares * price
 
         assets = cash + market_value
@@ -738,9 +775,9 @@ class Broker:
             _cash = [(tf.int2date(frame), self.principal) for frame in frames]
             self._cash = np.array(_cash, dtype=cash_dtype)
         else:
-            last_dt, cash = self._cash[-1]
+            prev, cash = self._cash[-1]
 
-            frames = tf.get_frames(last_dt, bid_time, FrameType.DAY)[1:]
+            frames = tf.get_frames(prev, bid_time, FrameType.DAY)[1:]
             if frames.size > 0:
                 recs = [(tf.int2date(date), cash) for date in frames]
 
@@ -748,47 +785,47 @@ class Broker:
                     (self._cash, np.array(recs, dtype=cash_dtype))
                 )
 
+        await self._fillup_positions(bid_time)
+
+    async def _fillup_positions(self, bid_time: datetime.datetime):
         # 补齐持仓表(需要处理复权)
         feed = get_app_context().feed
 
         if self._positions.size == 0:
             return
 
-        last_dt = self._positions[-1]["date"]
-
-        frames = tf.get_frames(last_dt, bid_time, FrameType.DAY)[1:]
-        if frames.size == 0:
+        prev = self._positions[-1]["date"]
+        logger.info("handling positions fillup from %s to %s", prev, bid_time)
+        frames = [
+            tf.int2date(frame) for frame in tf.get_frames(prev, bid_time, FrameType.DAY)
+        ]
+        if len(frames) == 1:
             return
 
-        data = self._positions.tolist()
+        last_day_position = self._positions[self._positions["date"] == prev]
 
-        last_day_position = self._positions[self._positions["date"] == last_dt]
-        dr_baseline_dt = last_dt
-        for frame in frames:
-            # 将last_dt的持仓数据补齐到frame日期的持仓数据中
-            copy = last_day_position.copy()
+        secs = last_day_position["security"].tolist()
+        dr_info = await feed.get_dr_factor(secs, frames)
 
-            cur_date = tf.int2date(frame)
-            copy["date"] = cur_date
-            # 延后一日后，持仓全部可用
-            copy["sellable"] = copy["shares"]
-            data.extend(copy)
+        padding_positions = []
+        for position in last_day_position:
+            sec = position["security"]
+            dr = dr_info[sec][1:]
 
-            # 如果当日有复权，需要将除权除息损益计入现金表
-            for i, sec in enumerate(copy["security"]):
-                dr = await feed.calc_xr_xd(
-                    sec, dr_baseline_dt, cur_date, copy["shares"][i]
-                )
+            paddings = np.array(
+                [position.item()] * (len(frames) - 1), dtype=daily_position_dtype
+            )
+            paddings["date"] = frames[1:]
+            paddings["shares"] = paddings["shares"] * dr
+            paddings["sellable"][1:] = paddings["shares"][:-1]
+            paddings["price"] = paddings["price"] / dr
 
-                if dr > 0:
-                    logger.info("%s于%s发生除权除息:%s", sec, cur_date, dr)
-                dr_baseline_dt = cur_date
-                _index = np.argwhere(self._cash["date"] >= cur_date).flatten()
-                if _index.size > 0:
-                    _index = _index[0]
-                    self._cash[_index:]["cash"] += dr
+            paddings[0]["sellable"] = position["shares"]
 
-        self._positions = np.array(data, dtype=daily_position_dtype)
+            padding_positions.extend(paddings)
+
+        padding_positions.sort(key=lambda x: x[0])
+        self._positions = np.concatenate((self._positions, padding_positions))
 
     async def _update_positions(self, trade: Trade, bid_date: datetime.date):
         """更新持仓信息
@@ -980,10 +1017,10 @@ class Broker:
         """卖出委托
 
         Args:
-            security: 委托证券代码
-            price: 出售价格，如果为None，则为市价委托
-            bid_shares: 询卖股数
-            bid_time: 委托时间
+            security str: 委托证券代码
+            price float: 出售价格，如果为None，则为市价委托
+            bid_shares int: 询卖股数
+            bid_time datetime.datetime: 委托时间
 
         Returns:
             成交记录列表,每个元素都是一个[Trade][backtest.trade.trade.Trade]对象

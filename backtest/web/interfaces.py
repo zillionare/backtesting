@@ -426,7 +426,7 @@ async def get_assets(request):
 
     Returns:
 
-        Response: 从`start`到`end`期间的账户资产信息，结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtpe][]
+        Response: 从`start`到`end`期间的账户资产信息，结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtype][]
 
     """
     broker: Broker = request.ctx.broker

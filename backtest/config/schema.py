@@ -36,6 +36,11 @@ class Config(object):
     class feed:
         type: Optional[str] = None
 
+    class postgres:
+        enabled: Optional[bool] = None
+
+        dsn: Optional[str] = None
+
     class redis:
         dsn: Optional[str] = None
 
@@ -49,8 +54,3 @@ class Config(object):
         bucket_name: Optional[str] = None
 
         enable_compress: Optional[bool] = None
-
-    class postgres:
-        dsn: Optional[str] = None
-
-        enabled: Optional[bool] = None

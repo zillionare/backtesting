@@ -7,6 +7,7 @@ from unittest import mock
 import cfg4py
 import numpy as np
 import omicron
+from coretypes import FrameType
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
@@ -45,8 +46,34 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_close_price(self):
         code = "002537.XSHE"
-        price = await self.feed.get_close_price([code], datetime.date(2022, 3, 14))
-        self.assertAlmostEqual(price[code], 9.56, 2)
+        start = datetime.date(2022, 3, 11)
+        end = datetime.date(2022, 3, 14)
+        price = await self.feed.get_close_price(code, end)
+        np.testing.assert_array_almost_equal(price, 9.56)
+
+    async def test_batch_get_close_price_in_range(self):
+        # test padding
+        start = datetime.date(2022, 3, 9)
+        end = datetime.date(2022, 3, 14)
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range",
+            return_value={
+                "603717.XSHG": np.array(
+                    [
+                        (start, 13.7),
+                        (end, 10.1),
+                    ],
+                    dtype=[("frame", "O"), ("close", "<f4")],
+                )
+            },
+        ):
+            frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
+            price = await self.feed.batch_get_close_price_in_range(
+                ["603717.XSHG"], frames
+            )
+            np.testing.assert_array_almost_equal(
+                price["603717.XSHG"]["close"], [13.7, 13.7, 13.7, 10.1]
+            )
 
     async def test_get_trade_price_limits(self):
         code = "002537.XSHE"
@@ -56,18 +83,25 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(9.68, limits[1], 2)
         self.assertAlmostEqual(7.92, limits[2], 2)
 
-    async def test_calc_xd_xr(self):
-        data = np.array(
-            [(datetime.date(2022, 3, 1), 10, 1), (datetime.date(2022, 3, 8), 9, 1.5)],
-            dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
-        )
-        with mock.patch(
-            "omicron.models.stock.Stock.get_bars_in_range", return_value=data
-        ):
-            dr = await self.feed.calc_xr_xd(
-                "002537.XSHE",
-                datetime.date(2022, 3, 1),
-                datetime.date(2022, 3, 8),
-                1000,
+        data = {
+            "002537.XSHE": np.array(
+                [
+                    (datetime.date(2022, 3, 7), 10, 0.95),
+                    (datetime.date(2022, 3, 8), 9, 1.1),
+                    (datetime.date(2022, 3, 14), 8, 1.2),
+                ],
+                dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
             )
-            self.assertEqual(dr, 5000)
+        }
+
+        start = datetime.date(2022, 3, 7)
+        end = datetime.date(2022, 3, 14)
+        frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range", return_value=data
+        ):
+            dr = await self.feed.get_dr_factor(["002537.XSHE"], frames)
+
+            dr = dr.get("002537.XSHE")
+            exp = [1.0, 1.16, 1.16, 1.16, 1.16, 1.26]
+            np.testing.assert_array_almost_equal(dr, exp, decimal=2)

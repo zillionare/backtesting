@@ -67,6 +67,8 @@ def start(port: int):
     logger.info("start backtest server at http://host:%s/%s", port, ep)
     bp.url_prefix = ep
 
+    # added for gh://zillionare/backtesting/issues/6
+    application.config.RESPONSE_TIMEOUT = 60 * 10
     application.blueprint(bp)
 
     application.run(host="0.0.0.0", port=port, register_sys_signals=True)

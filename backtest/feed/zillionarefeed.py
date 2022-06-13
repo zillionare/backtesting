@@ -4,7 +4,8 @@ from typing import Dict, List, Union
 
 import numpy as np
 from coretypes import FrameType
-from omicron import math_round
+from omicron import array_math_round, math_round, tf
+from omicron.extensions.np import fill_nan
 from omicron.models.stock import Stock
 
 from backtest.common.errors import EntrustError
@@ -34,24 +35,55 @@ class ZillionareFeed(BaseFeed):
             match_data_dtype
         )
 
-    async def get_close_price(
-        self, secs: Union[str, List[str]], date: datetime.date
-    ) -> Union[float, Dict[str, float]]:
-        if isinstance(secs, str):
-            secs = [secs]
+    async def get_close_price(self, sec: str, date: datetime.date, fq=False) -> float:
+        try:
+            bars = await Stock.get_bars(sec, 1, FrameType.DAY, date, fq=fq)
+            if len(bars):
+                return math_round(bars[0]["close"].item(), 2)
+            else:
+                logger.warning("get_close_price failed for %s:%s", sec, date)
+                raise EntrustError(EntrustError.NODATA, security=sec, time=date)
+        except Exception as e:
+            logger.exception(e)
+            logger.warning("get_close_price failed for %s:%s", sec, date)
+            raise
 
+    async def batch_get_close_price_in_range(
+        self, secs: List[str], frames: List[datetime.date], fq=False
+    ) -> Dict[str, np.array]:
         if len(secs) == 0:
             raise ValueError("No securities provided")
 
-        bars = await Stock.batch_get_bars(secs, 1, FrameType.DAY, date, fq=False)
+        start = frames[0]
+        end = frames[-1]
+        bars = await Stock.batch_get_bars_in_range(
+            secs, FrameType.DAY, start, end, fq=fq
+        )
+
+        close_dtype = [("frame", "O"), ("close", "<f4")]
+        result = {}
 
         try:
-            if isinstance(secs, str):
-                return bars[secs]["close"][0].item()
-            else:
-                return {sec: math_round(bars[sec]["close"][0], 2) for sec in secs}
-        except IndexError:
-            logger.warning("get_close_price failed for %s:%s", secs, date)
+            for sec, values in bars.items():
+                closes = values[["frame", "close"]].astype(close_dtype)
+                closes["close"] = array_math_round(closes["close"], 2)
+
+                # find missed frames, using left fill
+                missed = np.setdiff1d(frames, closes["frame"])
+                if len(missed):
+                    missed = np.array(
+                        [(f, np.nan) for f in missed],
+                        dtype=close_dtype,
+                    )
+                    closes = np.concatenate([closes, missed])
+                    closes = np.sort(closes, order="frame")
+                    closes["close"] = fill_nan(closes["close"])
+
+                result[sec] = closes
+
+            return result
+        except Exception:
+            logger.warning("get_close_price failed for %s:%s - %s", secs, start, end)
             raise
 
     async def get_trade_price_limits(self, sec: str, date: datetime.date) -> np.ndarray:
@@ -63,16 +95,37 @@ class ZillionareFeed(BaseFeed):
             logger.warning("get_trade_price_limits failed for %s:%s", sec, date)
             raise EntrustError(EntrustError.NODATA, security=sec, time=date)
 
-    async def calc_xr_xd(
-        self, sec: str, start: datetime.date, end: datetime.date, shares: int
-    ) -> float:
+    async def get_dr_factor(
+        self, secs: Union[str, List[str]], frames: List[datetime.date]
+    ) -> Dict[str, np.ndarray]:
         try:
-            bars = await Stock.get_bars_in_range(
-                sec, FrameType.DAY, start, end, fq=False
+            data = await Stock.batch_get_bars_in_range(
+                secs, FrameType.DAY, frames[0], frames[-1], fq=False
             )
-            factor = (bars[-1]["factor"] / bars[0]["factor"]) - 1
-            dr = math_round(bars[0]["close"].item(), 2) * shares * factor
-            return dr
-        except Exception:
-            logger.warning("calc_xr_xd failed for %s:%s ~ %s", sec, start, end)
+
+            result = {}
+
+            for sec, bars in data.items():
+                factors = bars[["frame", "factor"]].astype(
+                    [("frame", "O"), ("factor", "<f4")]
+                )
+
+                # find missed frames, using left fill
+                missed = np.setdiff1d(frames, bars["frame"])
+                if len(missed):
+                    missed = np.array(
+                        [(f, np.nan) for f in missed],
+                        dtype=[("frame", "O"), ("factor", "<f4")],
+                    )
+                    factors = np.concatenate([factors, missed])
+                    factors = np.sort(factors, order="frame")
+                    factors["factor"] = fill_nan(factors["factor"])
+
+                result[sec] = factors["factor"] / factors["factor"][0]
+            return result
+        except Exception as e:
+            logger.exception(e)
+            logger.warning(
+                "get_dr_factor failed for %s:%s ~ %s", secs, frames[0], frames[-1]
+            )
             raise

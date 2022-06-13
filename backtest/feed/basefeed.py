@@ -45,18 +45,36 @@ class BaseFeed(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_close_price(
-        self, secs: Union[str, List[str]], date: datetime.date
-    ) -> Union[float, Dict[str, float]]:
+    async def get_close_price(self, sec: str, date: datetime.date, fq=False) -> float:
         """
         获取证券品种在`date`日期的收盘价
 
         Args:
-            secs : 证券代码列表
-            date : 日期
+            sec: 证券代码
+            date: 日期
+            fq: 是否进行前复权
 
         Returns:
-            如果secs为单支股票，则返回该股收盘价；如果secs为一个列表，则返回一个字典，key为证券代码，value为收盘价
+            `sec`在`date`日的收盘价
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def batch_get_close_price_in_range(
+        self, secs: List[str], frames: List[datetime.date], fq=False
+    ) -> Dict[str, np.array]:
+        """获取多个证券在多个日期的收盘价
+
+        Args:
+            secs: 证券代码列表
+            frames: 日期列表, 日期必须是有序且连续
+            fq: 是否复权。
+
+        Raises:
+            NotImplementedError:
+
+        Returns:
+            a dict which key is `sec` and value is a numpy array which dtype is `[("frame", "O"), ("close", "f4")]`
         """
         raise NotImplementedError
 
@@ -76,17 +94,18 @@ class BaseFeed(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def calc_xr_xd(
-        self, sec: str, start: datetime.date, end: datetime.date, shares: int
-    ) -> float:
-        """计算证券`sec`在[start, end]期间发生的除权除息收益。
+    async def get_dr_factor(
+        self, secs: Union[str, List[str]], frames: List[datetime.date]
+    ) -> Dict[str, np.array]:
+        """股票在[start,end]间的每天的复权因子，使用start日进行归一化处理
+
+        注意实现者必须保证，复权因子的长度与日期的长度相同且完全对齐。如果遇到停牌的情况，应该进行相应的填充。
 
         Args:
-            sec: 证券品种
-            start: 证券持有的起始日期
-            end: 证券持有的结束日期
-            shares: 证券持有的份数
+            secs: 股票代码
+            frames: 日期列表
+
         Returns:
-            除权除息收益
+            返回一个dict
         """
         raise NotImplementedError

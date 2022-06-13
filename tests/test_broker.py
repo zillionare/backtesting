@@ -19,8 +19,8 @@ from backtest.trade.broker import Broker
 from backtest.trade.datatypes import (
     E_BACKTEST,
     EntrustSide,
-    assets_dtype,
     cash_dtype,
+    daily_position_dtype,
     position_dtype,
 )
 from backtest.trade.trade import Trade
@@ -361,23 +361,91 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         logger.info("check info with xdxr")
         with mock.patch(
-            "backtest.feed.zillionarefeed.ZillionareFeed.calc_xr_xd",
-            side_effect=[0, 2000, 0, 0, 0, 0, 0, 0, 0],
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+            side_effect=[
+                # no call for 3.7
+                {hljh: [1, 1], tyst: [1, 1]},
+                {hljh: [1, 1], tyst: [1, 1]},
+                {hljh: [1, 1.2], tyst: [1, 1.2]},  # 3.10
+                {hljh: [1, 1.0, 1.2], tyst: [1, 1.0, 1.2]},
+            ],
         ):
             await make_trades()
 
         with mock.patch(
             "arrow.now", return_value=datetime.datetime(2022, 3, 14, 9, 31)
         ):
+            exp = np.array(
+                [
+                    (datetime.date(2022, 3, 9), "002537.XSHE", 1000.0, 0.0, 8.95),
+                    (datetime.date(2022, 3, 10), "002537.XSHE", 2200.0, 1000.0, 8.2),
+                    (datetime.date(2022, 3, 11), "002537.XSHE", 2200.0, 2200.0, 8.2),
+                    (datetime.date(2022, 3, 14), "002537.XSHE", 1140, 700.0, 6.83),
+                ],
+                dtype=daily_position_dtype,
+            )
+
+            hljh_arr = broker._positions[broker._positions["security"] == hljh]
+            for key in ("shares", "sellable", "price"):
+                np.testing.assert_array_almost_equal(exp[key], hljh_arr[key], 2)
+
+            np.testing.assert_array_equal(exp["date"], hljh_arr["date"])
+
+            exp = np.array(
+                [
+                    (datetime.date(2022, 3, 7), "603717.XSHG", 500.0, 0.0, 14.84),
+                    (
+                        datetime.date(2022, 3, 8),
+                        "603717.XSHG",
+                        1500.0,
+                        500.0,
+                        14.80666667,
+                    ),
+                    (
+                        datetime.date(2022, 3, 9),
+                        "603717.XSHG",
+                        1500.0,
+                        1500.0,
+                        14.80666667,
+                    ),
+                    (
+                        datetime.date(2022, 3, 10),
+                        "603717.XSHG",
+                        700.0,
+                        400.0,
+                        12.33888889,
+                    ),
+                    (
+                        datetime.date(2022, 3, 11),
+                        "603717.XSHG",
+                        700.0,
+                        700.0,
+                        12.33888889,
+                    ),
+                    (
+                        datetime.date(2022, 3, 14),
+                        "603717.XSHG",
+                        840.0,
+                        700.0,
+                        10.28240741,
+                    ),
+                ],
+                dtype=daily_position_dtype,
+            )
+
+            tyst_arr = broker._positions[broker._positions["security"] == tyst]
+            for key in ("shares", "sellable", "price"):
+                np.testing.assert_array_almost_equal(exp[key], tyst_arr[key], 2)
+            np.testing.assert_array_equal(exp["date"], tyst_arr["date"])
+
             info = await broker.info()
-            self.assertAlmostEqual(1000407.99, info["assets"], 2)
-            self.assertAlmostEqual(991579.99, info["available"], 2)
+            self.assertAlmostEqual(1008979.19, info["assets"], 2)
+            self.assertAlmostEqual(989579.99, info["available"], 2)
 
-            assets = await broker.get_assets(datetime.date(2022, 3, 9))
-            cash = broker.get_cash(datetime.date(2022, 3, 9))
-
-            self.assertAlmostEqual(2000, assets - assets1)
-            self.assertAlmostEqual(2000, cash - cash1)
+            assets = await broker.get_assets(datetime.date(2022, 3, 10))
+            cash = broker.get_cash(datetime.date(2022, 3, 10))
+            self.assertAlmostEqual(974671.48, cash, 2)
+            self.assertAlmostEqual(1004598.48, assets, 2)
 
         # test get info at special date
         broker = Broker("test", 1e6, 1e-4)
@@ -507,25 +575,29 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             [0, 500, 500, 500, 1000, 0], broker._positions["sellable"].tolist()
         )
 
-        print(broker._cash)
         # check when there's xdxr
-        with mock.patch(
-            "backtest.feed.zillionarefeed.ZillionareFeed.calc_xr_xd",
-            side_effect=[
-                5000,  # 03/02复权
-                0,  # 03/03不复权
-                0,  # 03/04不复权
-                10000,  # 03/05复权
-            ],
-        ):
-            broker = Broker("test", 1e6, 1e-4)
-            hljh = "002537.XSHE"
+        with mock.patch("arrow.now", return_value=datetime.datetime(2022, 3, 14, 15)):
+            with mock.patch(
+                "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+                side_effect=[
+                    {hljh: [1, 1, 1, 1]},
+                    {hljh: [1, 1.2]},
+                    {hljh: [1, 1, 1, 1, 1, 1]},
+                ],
+            ):
+                broker = Broker("test", 1e6, 1e-4)
+                hljh = "002537.XSHE"
 
-            await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
-            await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
-            await broker.sell(hljh, 9, 500, datetime.datetime(2022, 3, 7, 9, 31))
+                await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
+                await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
+                await broker.sell(hljh, 9, 500, datetime.datetime(2022, 3, 7, 9, 31))
 
-            print(broker._cash)
+                self.assertListEqual(
+                    broker._positions["shares"].tolist(), [500, 500, 500, 1000, 700]
+                )
+                self.assertListEqual(
+                    broker._positions["sellable"].tolist(), [0, 500, 500, 500, 500]
+                )
 
     async def test_get_position(self):
         broker = Broker("test", 1e6, 1e-4)
@@ -651,3 +723,54 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 "002537.XSHE", 14.84, 1500, datetime.datetime(2022, 3, 4, 9, 31)
             )
         self.assertEqual(cm.exception.status_code, EntrustError.TIME_REWIND)
+
+    async def test_fillup_positions(self):
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        broker = Broker("test", 1_000_000, 1e-4, start, end)
+
+        hljh = "002537.XSHE"
+        tyst = "603717.XSHG"
+        await broker.buy(hljh, None, 500, datetime.datetime(2022, 3, 1, 9, 30))
+        await broker.buy(tyst, None, 1500, datetime.datetime(2022, 3, 1, 9, 30))
+
+        with mock.patch("arrow.now", return_value=datetime.datetime(2022, 3, 14, 15)):
+            with mock.patch(
+                "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+                return_value={hljh: np.array([1.0] * 5), tyst: np.array([1.0] * 5)},
+            ):
+                await broker._fillup_positions(datetime.datetime(2022, 3, 7, 9, 31))
+                exp = [500, 1500] * 5
+                np.testing.assert_almost_equal(broker._positions["shares"], exp)
+
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+            return_value={
+                hljh: np.array([1.0, 1.1, 1.1, 1.1, 1.1, 1.2]),
+                tyst: np.array([1.0, 1.0, 1.2, 1.2, 1.2, 1.3]),
+            },
+        ):  # fillup from 3.7 to 3.14, 5 days in total
+            await broker._fillup_positions(datetime.datetime(2022, 3, 14, 9, 31))
+
+            np.testing.assert_array_almost_equal(
+                [550, 550, 550, 550, 600],
+                broker._positions[broker._positions["security"] == hljh]["shares"][-5:],
+                decimal=2,
+            )
+
+            np.testing.assert_almost_equal(
+                [8.43, 8.43, 8.43, 8.43, 7.73],
+                broker._positions[broker._positions["security"] == hljh]["price"][-5:],
+                decimal=2,
+            )
+
+            np.testing.assert_array_almost_equal(
+                [1500, 1800, 1800, 1800, 1950],
+                broker._positions[broker._positions["security"] == tyst]["shares"][-5:],
+                decimal=2,
+            )
+            np.testing.assert_array_almost_equal(
+                [15.45, 12.88, 12.88, 12.88, 11.88],
+                broker._positions[broker._positions["security"] == tyst]["price"][-5:],
+                decimal=2,
+            )

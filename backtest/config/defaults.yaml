@@ -61,7 +61,8 @@ auth:
 feed:
   # the only type currently supported
   type: zillionare
-
+postgres:
+  enabled: false
 redis:
   dsn: redis://192.168.100.101:56379
 influxdb:

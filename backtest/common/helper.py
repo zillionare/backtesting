@@ -73,14 +73,17 @@ def protected(wrapped):
             is_authenticated = check_token(request)
             is_duplicated = check_duplicated_request(request)
             params = request.json or request.args
+            command = request.server_path.split("/")[-1]
 
             if is_authenticated and not is_duplicated:
                 try:
+                    logger.info("received request: %s, params %s", command, params)
                     result = await f(request, *args, **kwargs)
+                    logger.info("finished request: %s, params %s", command, params)
                     return result
                 except EntrustError as e:
                     logger.exception(e)
-                    logger.warning("sell_percent error: %s", params)
+                    logger.warning("request: %s failed: %s", command, params)
                     return response.text(f"{e.status_code} {e.message}", status=499)
                 except Exception as e:
                     logger.exception(e)
