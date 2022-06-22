@@ -276,8 +276,9 @@ class Broker:
         secs = position[position["shares"] != 0]["security"]
         shares = {sec: share for sec, share in zip(secs, position["shares"])}
 
-        feed = get_app_context().feed
-        closes = await feed.batch_get_close_price_in_range(secs, frames)
+        if len(secs):
+            feed = get_app_context().feed
+            closes = await feed.batch_get_close_price_in_range(secs, frames)
 
         for frame in frames:
             cash = self.get_cash(frame)
