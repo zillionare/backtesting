@@ -289,6 +289,7 @@ async def positions(request):
         date = arrow.get(date).date()
         position = request.ctx.broker.get_position(date)
 
+    position = position[position["shares"] != 0]
     return response.raw(pickle.dumps(position))
 
 

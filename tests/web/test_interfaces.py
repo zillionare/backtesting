@@ -211,6 +211,20 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
 
+        # issue 8, sell them all and check positions
+        await post(
+            "sell",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 9.85,
+                "volume": 500,
+                "order_time": "2022-03-02 10:04:00",
+            },
+        )
+        response = await get("positions", self.token, date="2022-03-07")
+        self.assertEqual(0, response.size)
+
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
     async def test_info(self, mock_now):
         balance = await get("info", self.token)
