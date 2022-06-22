@@ -774,3 +774,42 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 broker._positions[broker._positions["security"] == tyst]["price"][-5:],
                 decimal=2,
             )
+
+        # issue 9, 对持仓为0的股，不查询价格和dr信息
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        broker = Broker("test_fillup_positions", 1_000_000, 1e-4, start, end)
+
+        hljh = "002537.XSHE"
+        tyst = "603717.XSHG"
+        await broker.buy(hljh, None, 500, datetime.datetime(2022, 3, 1, 9, 30))
+        await broker.buy(tyst, None, 1500, datetime.datetime(2022, 3, 1, 9, 30))
+        await broker.sell(hljh, None, 500, datetime.datetime(2022, 3, 4, 9, 31))
+
+        with mock.patch("arrow.now", return_value=datetime.datetime(2022, 3, 14, 15)):
+            with mock.patch(
+                "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+                return_value={tyst: np.array([1.0] * 2)},
+            ):
+                await broker._fillup_positions(datetime.datetime(2022, 3, 7, 9, 31))
+                exp = [500, 1500, 500, 1500, 500, 1500, 0, 1500, 1500]
+                np.testing.assert_almost_equal(broker._positions["shares"], exp)
+
+                await broker.buy(hljh, None, 1000, datetime.datetime(2022, 3, 7, 9, 32))
+
+                await broker._fillup_positions(datetime.datetime(2022, 3, 8, 9, 31))
+                exp = [
+                    500.0,
+                    1500.0,
+                    500.0,
+                    1500.0,
+                    500.0,
+                    1500.0,
+                    0.0,
+                    1500.0,
+                    1500.0,
+                    1000.0,
+                    1500.0,
+                    1000.0,
+                ]
+                np.testing.assert_almost_equal(broker._positions["shares"], exp)

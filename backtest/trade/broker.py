@@ -273,7 +273,7 @@ class Broker:
 
             return
 
-        secs = position["security"]
+        secs = position[position["shares"] != 0]["security"]
         shares = {sec: share for sec, share in zip(secs, position["shares"])}
 
         feed = get_app_context().feed
@@ -803,23 +803,30 @@ class Broker:
             return
 
         last_day_position = self._positions[self._positions["date"] == prev]
+        last_held_position = last_day_position[last_day_position["shares"] != 0]
 
-        secs = last_day_position["security"].tolist()
+        # 已清空股票不需要展仓, issue 9
+        secs = last_held_position["security"].tolist()
         dr_info = await feed.get_dr_factor(secs, frames)
 
         padding_positions = []
-        for position in last_day_position:
+        for position in last_held_position:
             sec = position["security"]
-            dr = dr_info[sec][1:]
+            if sec in dr_info:
+                dr = dr_info[sec][1:]
+            else:
+                dr = None
 
             paddings = np.array(
                 [position.item()] * (len(frames) - 1), dtype=daily_position_dtype
             )
             paddings["date"] = frames[1:]
-            paddings["shares"] = paddings["shares"] * dr
-            paddings["sellable"][1:] = paddings["shares"][:-1]
-            paddings["price"] = paddings["price"] / dr
 
+            if dr is not None:
+                paddings["shares"] = paddings["shares"] * dr
+                paddings["price"] = paddings["price"] / dr
+
+            paddings["sellable"][1:] = paddings["shares"][:-1]
             paddings[0]["sellable"] = position["shares"]
 
             padding_positions.extend(paddings)
