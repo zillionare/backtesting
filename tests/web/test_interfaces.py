@@ -337,11 +337,27 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+        _ = await post(
+            "buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
         r = (await get("bills", self.token)) or {}
         self.assertIn("tx", r)
         self.assertIn("trades", r)
         self.assertIn("positions", r)
         self.assertIn("assets", r)
+        # issue 7
+        self.assertListEqual(
+            [["2022-03-01", "002537.XSHE", 500.0, 0.0, 9.42]], r["positions"]
+        )
 
     async def test_sell_percent(self):
         response = await post(

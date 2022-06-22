@@ -375,9 +375,7 @@ async def bills(request):
 
     results["tx"] = broker.transactions
     results["trades"] = broker.trades
-    results["positions"] = broker._positions[list(position_dtype.names)].astype(
-        position_dtype
-    )
+    results["positions"] = broker._positions
 
     if not (broker.mode == "bt" and broker._bt_stopped):
         await broker.recalc_assets()
