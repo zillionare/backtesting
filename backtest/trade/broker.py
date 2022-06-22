@@ -448,6 +448,7 @@ class Broker:
 
         cash = self.get_cash(date)
         positions = self.get_position(date)
+        # this also exclude empty entry (which security is None)
         heldings = positions[positions["shares"] > 0]["security"]
 
         market_value = 0
@@ -477,6 +478,7 @@ class Broker:
         """获取当前持仓
 
         如果要获取历史上某天的持仓，请使用`get_position`方法。
+        如果当天个股曾有持仓，但被清仓，持仓表仍保留entry，但shares将置为空。如果当天没有任何持仓（不包括当天清空的情况），则会留一个`security`字段为None的空entry。
 
         Returns:
             返回dtype为[position_dtype][backtest.trade.datatypes.position_dtype]的numpy structure array
@@ -804,7 +806,19 @@ class Broker:
             return
 
         last_day_position = self._positions[self._positions["date"] == prev]
+        if last_day_position[0]["security"] is None:
+            # empty entries, no need to be extended
+            return
+
         last_held_position = last_day_position[last_day_position["shares"] != 0]
+
+        if last_held_position.size == 0:
+            empty = np.array(
+                [(frame, None, 0, 0, 0) for frame in frames[1:]],
+                dtype=daily_position_dtype,
+            )
+            self._positions = np.hstack((self._positions, empty))
+            return
 
         # 已清空股票不需要展仓, issue 9
         secs = last_held_position["security"].tolist()
@@ -832,8 +846,9 @@ class Broker:
 
             padding_positions.extend(paddings)
 
-        padding_positions.sort(key=lambda x: x[0])
-        self._positions = np.concatenate((self._positions, padding_positions))
+        if len(padding_positions):
+            padding_positions.sort(key=lambda x: x[0])
+            self._positions = np.concatenate((self._positions, padding_positions))
 
     async def _update_positions(self, trade: Trade, bid_date: datetime.date):
         """更新持仓信息

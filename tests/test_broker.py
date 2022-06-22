@@ -813,3 +813,69 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                     1000.0,
                 ]
                 np.testing.assert_almost_equal(broker._positions["shares"], exp)
+
+                await broker.sell(
+                    hljh, None, 1000, datetime.datetime(2022, 3, 9, 9, 40)
+                )
+                await broker.sell(
+                    tyst, None, 1500, datetime.datetime(2022, 3, 9, 9, 41)
+                )
+
+                await broker._fillup_positions(datetime.datetime(2022, 3, 10, 9, 31))
+
+                exp_secs = [
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    "603717.XSHG",
+                    "002537.XSHE",
+                    None,
+                ]
+                np.testing.assert_array_equal(exp_secs, broker._positions["security"])
+
+                exp_date = [
+                    datetime.date(2022, 3, 1),
+                    datetime.date(2022, 3, 1),
+                    datetime.date(2022, 3, 2),
+                    datetime.date(2022, 3, 2),
+                    datetime.date(2022, 3, 3),
+                    datetime.date(2022, 3, 3),
+                    datetime.date(2022, 3, 4),
+                    datetime.date(2022, 3, 4),
+                    datetime.date(2022, 3, 7),
+                    datetime.date(2022, 3, 7),
+                    datetime.date(2022, 3, 8),
+                    datetime.date(2022, 3, 8),
+                    datetime.date(2022, 3, 9),
+                    datetime.date(2022, 3, 9),
+                    datetime.date(2022, 3, 10),
+                ]
+                np.testing.assert_array_equal(broker._positions["date"], exp_date)
+
+                await broker.buy(hljh, None, 500, datetime.datetime(2022, 3, 11, 9, 30))
+                await broker.sell(
+                    hljh, None, 500, datetime.datetime(2022, 3, 14, 9, 31)
+                )
+
+                np.testing.assert_array_equal(
+                    broker._positions[-3:]["date"],
+                    [
+                        datetime.date(2022, 3, 10),
+                        datetime.date(2022, 3, 11),
+                        datetime.date(2022, 3, 14),
+                    ],
+                )
+
+                np.testing.assert_array_equal(
+                    broker._positions[-3:]["security"],
+                    [None, "002537.XSHE", "002537.XSHE"],
+                )
