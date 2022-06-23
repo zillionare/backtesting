@@ -806,7 +806,7 @@ class Broker:
             return
 
         last_day_position = self._positions[self._positions["date"] == prev]
-        if last_day_position[0]["security"] is None:
+        if np.all(last_day_position["security"] is None):
             # empty entries, no need to be extended
             return
 
