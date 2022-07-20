@@ -12,7 +12,7 @@ from sanic.blueprints import Blueprint
 from backtest.common.errors import AccountError, EntrustError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
-from backtest.trade.datatypes import position_dtype, rich_assets_dtype
+from backtest.trade.datatypes import cash_dtype, rich_assets_dtype
 
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
@@ -445,19 +445,28 @@ async def get_assets(request):
     if not (broker.mode == "bt" and broker._bt_stopped):
         await broker.recalc_assets(end)
 
+    if broker._assets.size == 0:
+        return response.raw(pickle.dump(np.empty(0, dtype=rich_assets_dtype)))
+
     # cash may be shorter than assets
-    if broker._cash.size < broker._assets.size:
+    if broker._cash.size == 0:
+        cash = broker._assets.astype(cash_dtype)
+    elif broker._cash.size < broker._assets.size:
         n = broker._assets.size - broker._cash.size
         cash = np.pad(broker._cash, (0, n), "edge")
     else:
         cash = broker._cash
 
-    cash = cash["cash"]
-    mv = broker._assets["assets"] - cash
+    cash = cash[(cash["date"] <= end) & (cash["date"] >= start)]
+
+    assets = broker._assets
+    assets = assets[(assets["date"] <= end) & (assets["date"] >= start)]
+
+    mv = assets["assets"] - cash["cash"]
 
     # both _cash and _assets has been moved backward one day
     result = numpy_append_fields(
-        broker._assets, ["cash", "mv"], [cash, mv], [("cash", "f8"), ("mv", "f8")]
-    ).astype(rich_assets_dtype)[1:]
+        assets, ["cash", "mv"], [cash["cash"], mv], [("cash", "f8"), ("mv", "f8")]
+    ).astype(rich_assets_dtype)
 
     return response.raw(pickle.dumps(result))

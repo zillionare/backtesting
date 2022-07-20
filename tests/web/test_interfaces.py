@@ -6,6 +6,7 @@ from unittest import mock
 
 import arrow
 import cfg4py
+import numpy as np
 
 from backtest.common.errors import BacktestError
 from tests import (
@@ -257,6 +258,24 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         # this also test get_assets
         hljh = "002537.XSHE"
 
+        actual = await get("assets", self.token)
+        np.testing.assert_array_equal(
+            actual["date"],
+            [
+                datetime.date(2022, 3, 1),
+                datetime.date(2022, 3, 2),
+                datetime.date(2022, 3, 3),
+                datetime.date(2022, 3, 4),
+                datetime.date(2022, 3, 7),
+                datetime.date(2022, 3, 8),
+                datetime.date(2022, 3, 9),
+                datetime.date(2022, 3, 10),
+                datetime.date(2022, 3, 11),
+                datetime.date(2022, 3, 14),
+            ],
+        )
+
+        np.testing.assert_almost_equal(actual["cash"], [1000000] * 10, decimal=2)
         for price, volume, tm in [
             (9.13, 500, "2022-03-01 09:31:00"),
             (10.03, 500, "2022-03-02 09:31:00"),
@@ -329,6 +348,15 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         assets = await get("assets", self.token)
         self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
         self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 14))
+
+        assets = await get(
+            "assets",
+            self.token,
+            start=datetime.date(2022, 3, 1),
+            end=datetime.date(2022, 3, 8),
+        )
+        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
+        self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 8))
 
     async def test_protect_admin(self):
         """valid admin token is tested through other tests"""
