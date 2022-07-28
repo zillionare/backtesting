@@ -38,7 +38,7 @@ async def application_init(app, *args):
         logger.warning(
             "omicron running in degrade mode, this may cause inaccurate results due to calendar issues"
         )
-        if os.environ.get(cfg4py.envar) == "DEV":
+        if os.environ.get(cfg4py.envar) in ("DEV", "TEST"):
             TimeFrame.service_degrade()
         else:
             sys.exit(-1)
