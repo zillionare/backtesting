@@ -310,6 +310,35 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(9998678423.288, broker.assets, 2)
         self.assertAlmostEqual(broker.cash, broker.assets, 2)
 
+        # 有除权除息的情况下，卖出
+        async def make_trades():
+            await broker.buy(tyst, 100, 1000, datetime.datetime(2022, 3, 8, 14, 8))
+            await broker.buy(hljh, 100, 1000, datetime.datetime(2022, 3, 8, 14, 33))
+
+            await broker.sell(tyst, 3.0, 1000, datetime.datetime(2022, 3, 9, 9, 30))
+            await broker.sell(tyst, 3.0, 200, datetime.datetime(2022, 3, 10, 9, 30))
+            await broker.sell(hljh, 9.1, 1200, datetime.datetime(2022, 3, 10, 9, 31))
+
+        broker = Broker("test", 1e6, 1e-4)
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+            side_effect=[
+                # no call for 3.8
+                {hljh: np.array([1, 1.2]), tyst: np.array([1, 1.2])},  # 3.9
+                {hljh: np.array([1, 1]), tyst: np.array([1, 1])},  # 3.10
+                {hljh: np.array([1, 1]), tyst: np.array([1, 1])},  # 3.11
+                {hljh: np.array([1, 1]), tyst: np.array([1, 1])},  # 3.14
+            ],
+        ):
+            await make_trades()
+            # ensure all shares are sold out
+            np.testing.assert_array_almost_equal(
+                broker._positions["shares"], [1e3, 1e3, 2e2, 1.2e3, 0, 0]
+            )
+            np.testing.assert_array_almost_equal(
+                broker._positions["sellable"], [0, 0, 0, 1e3, 0, 0]
+            )
+
     async def test_info(self):
         # 本测试用例包含了除权除息的情况
         broker = Broker("test", 1e6, 1e-4)
@@ -364,10 +393,10 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
             side_effect=[
                 # no call for 3.7
-                {hljh: [1, 1], tyst: [1, 1]},
-                {hljh: [1, 1], tyst: [1, 1]},
-                {hljh: [1, 1.2], tyst: [1, 1.2]},  # 3.10
-                {hljh: [1, 1.0, 1.2], tyst: [1, 1.0, 1.2]},
+                {hljh: np.array([1, 1]), tyst: np.array([1, 1])},
+                {hljh: np.array([1, 1]), tyst: np.array([1, 1])},
+                {hljh: np.array([1, 1.2]), tyst: np.array([1, 1.2])},  # 3.10
+                {hljh: np.array([1, 1.0, 1.2]), tyst: np.array([1, 1.0, 1.2])},
             ],
         ):
             await make_trades()
@@ -580,9 +609,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             with mock.patch(
                 "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
                 side_effect=[
-                    {hljh: [1, 1, 1, 1]},
-                    {hljh: [1, 1.2]},
-                    {hljh: [1, 1, 1, 1, 1, 1]},
+                    {hljh: np.array([1, 1, 1, 1])},
+                    {hljh: np.array([1, 1.2])},
+                    {hljh: np.array([1, 1, 1, 1, 1, 1])},
                 ],
             ):
                 broker = Broker("test", 1e6, 1e-4)

@@ -24,11 +24,11 @@ class Trade:
         """Trade对象代表了一笔已成功的委托（即已完成的交易）
 
         Args:
-            eid : 对应的委托号
-            security : 证券代码
-            price : 交易价格
-            shares : 交易数量
-            fee : 交易手续费
+            eid: 对应的委托号
+            security: 证券代码
+            price: 交易价格
+            shares: 交易数量
+            fee: 交易手续费
             time: 交易时间
         """
         self.eid = eid
@@ -90,7 +90,7 @@ class Trade:
             fee: 交易手续费
             close_time: 成交日期
         """
-        assert self.side == EntrustSide.BUY
+        assert self.side in (EntrustSide.BUY, EntrustSide.XDXR)
 
         if not self.closed:
             sec = self.security

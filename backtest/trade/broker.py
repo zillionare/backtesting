@@ -4,6 +4,7 @@ Broker是一个交易代理。每一个交易代理对应一个账户，记录�
 import asyncio
 import datetime
 import logging
+import uuid
 from typing import Dict, List, Tuple
 
 import arrow
@@ -19,8 +20,8 @@ from empyrical import (
     sharpe_ratio,
     sortino_ratio,
 )
-from omicron import array_price_equal, math_round, price_equal
-from omicron.extensions.np import numpy_append_fields
+from omicron import array_price_equal, math_round
+from omicron.extensions.np import array_math_round
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
@@ -838,8 +839,28 @@ class Broker:
             paddings["date"] = frames[1:]
 
             if dr is not None:
+                adjust_shares = array_math_round(paddings["shares"] * (dr - 1), 2)
                 paddings["shares"] = paddings["shares"] * dr
                 paddings["price"] = paddings["price"] / dr
+
+                # 模拟一笔买单，以便此后卖出时能对应到买单。否则，将卖不出去。
+                # https://github.com/zillionare/trader-client/issues/10
+                for i, adjust_share in enumerate(adjust_shares):
+                    if adjust_share == 0:
+                        continue
+
+                    order_time = tf.combine_time(frames[1:][i], 15)
+                    trade = Trade(
+                        uuid.uuid4(),
+                        sec,
+                        paddings["price"],
+                        adjust_share,
+                        0,
+                        EntrustSide.XDXR,
+                        order_time,
+                    )
+                    self.trades[trade.tid] = trade
+                    self._update_unclosed_trades(trade.tid, order_time.date())
 
             paddings["sellable"][1:] = paddings["shares"][:-1]
             paddings[0]["sellable"] = position["shares"]
@@ -899,8 +920,8 @@ class Broker:
                     / (old_shares + new_shares),
                 )
             else:
-                shares = old_shares - trade.shares
-                sellable = old_sellable - trade.shares
+                shares = math_round(old_shares - trade.shares, 4)
+                sellable = math_round(old_sellable - trade.shares, 4)
                 if shares == 0:
                     old_price = 0
                 self._positions[i] = (
@@ -1042,7 +1063,7 @@ class Broker:
         Args:
             security str: 委托证券代码
             price float: 出售价格，如果为None，则为市价委托
-            bid_shares int: 询卖股数
+            bid_shares float: 询卖股数。注意我们不限制必须以100的倍数卖出。
             bid_time datetime.datetime: 委托时间
 
         Returns:
@@ -1057,7 +1078,7 @@ class Broker:
         self,
         security: str,
         bid_price: float,
-        bid_shares: int,
+        bid_shares: float,
         bid_time: datetime.datetime,
     ) -> List[Trade]:
         await self._before_trade(bid_time)
@@ -1124,7 +1145,7 @@ class Broker:
         )
 
         logger.info(
-            "委卖%s(%s), 成交%d股，均价%.2f, 成交时间%s",
+            "委卖%s(%s), 成交%s股，均价%.2f, 成交时间%s",
             en.security,
             en.eid,
             filled,

@@ -234,11 +234,9 @@ async def sell_percent(request):
     if sellable.size == 0:
         raise EntrustError(EntrustError.NO_POSITION, security=security, time=order_time)
 
-    sellable = sellable[0]["sellable"]
+    sellable = sellable[0]["sellable"] * percent
 
-    volume = math_round(sellable * percent / 100, 0) * 100
-
-    result = await request.ctx.broker.sell(security, price, volume, order_time)
+    result = await request.ctx.broker.sell(security, price, sellable, order_time)
     return response.json(jsonify(result))
 
 

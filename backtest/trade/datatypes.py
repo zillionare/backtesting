@@ -11,9 +11,14 @@ E_BACKTEST: Final = "BACKTEST"
 class EntrustSide(IntEnum):
     BUY = 1
     SELL = -1
+    XDXR = 0
 
     def __str__(self):
-        return {EntrustSide.BUY: "买入", EntrustSide.SELL: "卖出"}[self]
+        return {
+            EntrustSide.BUY: "买入",
+            EntrustSide.SELL: "卖出",
+            EntrustSide.XDXR: "分红配股",
+        }[self]
 
 
 class BidType(IntEnum):
