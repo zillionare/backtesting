@@ -1,3 +1,8 @@
+# 构建和发布docker容器
+在backtest/docker目录下，有一个build.sh文件，运行它将构建回测服务器镜像。如果要将此发布到hub.docker.com，运行以下命令：
+```
+./build.sh --publish
+```
 # 测试模式
 
 backtest还提供了一种开发模式。这种模式下，backtest服务器将自带少量数据，方便与[trader-client](https://zillionare.github.io/trader-client/)进行联调。
@@ -21,7 +26,7 @@ docker network connect --alias bt tox-bt-net tox-bt
 
 提供的数据包含了天域生态、海联金汇到3月1日到3月14日止的日线和分钟线和涨跌停价格，用以撮合成交和提供收盘价数据（未复权，带复权因子）。
 
-注意这里构建backtest容器的参数与正式运行略有不同，即多了一个`-e MODE=TEST`参数。通过这个参数，容器在启动时，将执行以下脚本：
+注意这里启动backtest容器的参数与正式运行略有不同，即多了一个`-e MODE=TEST`参数。通过这个参数，容器在启动时，将执行以下脚本：
 ```console
 if [ $MODE = "TEST" ]; then
     if [ ! -f /root/.zillionare/backtest/config/defaults.yaml ]; then
@@ -44,3 +49,9 @@ fi
 backtest提供了两个对账日志文件， /var/log/backtest/entrust.log和/var/log/backtest/trade.log（缺省位置，可以配置文件中的entrust和trade两项中的filename)。其中trade.log包括了买卖成交记录。可以根据这个文件和tests/data/validation.xlsx配合来进行对账。
 
 注意两个文件的tsv文件。
+
+# 文档发布
+```
+mike deploy $version
+mike set-default $version
+```
