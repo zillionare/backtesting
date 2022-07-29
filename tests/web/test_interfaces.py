@@ -204,6 +204,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(position["security"], "002537.XSHE")
         self.assertAlmostEqual(position["shares"], 500)
         self.assertAlmostEqual(position["price"], 9.42, 2)
+        self.assertEqual(position["sellable"], 0)
 
         response = await get("positions", self.token, date="2022-03-07")
         position = response[0]

@@ -457,9 +457,14 @@ class Broker:
             feed = get_app_context().feed
 
             for sec in heldings:
-                price = await feed.get_close_price(sec, date)
                 shares = positions[positions["security"] == sec]["shares"].item()
-                market_value += shares * price
+                price = await feed.get_close_price(sec, date)
+
+                if price is not None:
+                    market_value += shares * price
+                else:
+                    price = positions[positions["security"] == sec]["price"].item()
+                    market_value += shares * price
 
         assets = cash + market_value
 

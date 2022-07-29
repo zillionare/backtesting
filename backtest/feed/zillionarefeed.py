@@ -39,14 +39,15 @@ class ZillionareFeed(BaseFeed):
         try:
             bars = await Stock.get_bars(sec, 1, FrameType.DAY, date, fq=fq)
             if len(bars):
-                return math_round(bars[0]["close"].item(), 2)
+                return math_round(bars[-1]["close"].item(), 2)
             else:
-                logger.warning("get_close_price failed for %s:%s", sec, date)
-                raise EntrustError(EntrustError.NODATA, security=sec, time=date)
+                bars = await Stock.get_bars(sec, 500, FrameType.DAY, date, fq=fq)
+                return math_round(bars[-1]["close"].item(), 2)
         except Exception as e:
             logger.exception(e)
             logger.warning("get_close_price failed for %s:%s", sec, date)
-            raise
+
+        return None
 
     async def batch_get_close_price_in_range(
         self, secs: List[str], frames: List[datetime.date], fq=False

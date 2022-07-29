@@ -553,10 +553,36 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
 
-        for i in range(10):
-            dt = tf.day_shift(datetime.date(2022, 3, 1), i)
-            actual = await broker.get_assets(dt)
-            print(actual)
+        # 持仓股有停牌, https://github.com/zillionare/backtesting/issues/14
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars",
+            side_effect=[np.array([]), np.array([(10.0,)], dtype=[("close", "f4")])],
+        ):
+            assets = await broker.get_assets(datetime.date(2022, 3, 7))
+            self.assertAlmostEqual(assets, broker.cash + 10 * 500, 2)
+
+        broker = Broker("test", 1e6, 1e-4)
+        await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars",
+            side_effect=[np.array([]), np.array([])],
+        ):
+            assets = await broker.get_assets(datetime.date(2022, 3, 7))
+            price = broker._positions[-1]["price"]
+            self.assertAlmostEqual(assets, broker.cash + 500 * price, 2)
+
+        broker = Broker("test", 1e6, 1e-4)
+        await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars",
+            side_effect=[
+                np.array([(i,)], dtype=[("close", "f4")]) for i in range(1, 10)
+            ],
+        ):
+            for i in range(1, 10):
+                dt = tf.day_shift(datetime.date(2022, 3, 1), i)
+                actual = await broker.get_assets(dt)
+                self.assertAlmostEqual(actual, broker.cash + 500 * i)
 
     async def test_before_trade(self):
         """this also test get_cash"""
@@ -637,12 +663,20 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
         self.assertEqual(0, broker.position["sellable"].item())
 
+        # 查询过往持仓
+        sellable = broker.get_position(datetime.date(2022, 3, 2))["sellable"].item()
+        self.assertEqual(500, sellable)
+
         # next day, it's all sellable
         sellable = broker.get_position(datetime.date(2022, 3, 4))["sellable"].item()
         self.assertEqual(500, sellable)
 
         await broker.sell(hljh, 9.59, 500, datetime.datetime(2022, 3, 4, 9, 31))
         self.assertEqual(0, broker.position["shares"].item())
+
+        # 查询过往持仓
+        sellable = broker.get_position(datetime.date(2022, 3, 2))["sellable"].item()
+        self.assertEqual(500, sellable)
 
     async def test_recalc_assets(self):
         # 回测模式

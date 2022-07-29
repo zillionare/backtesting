@@ -51,6 +51,20 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         price = await self.feed.get_close_price(code, end)
         np.testing.assert_array_almost_equal(price, 9.56)
 
+        # first get_bars returns None
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars",
+            side_effect=[[], np.array([1000], dtype=[("close", "f4")])],
+        ):
+            price = await self.feed.get_close_price(code, end)
+            self.assertEqual(price, 1000)
+
+        # test error handling
+        with mock.patch(
+            "omicron.models.stock.Stock.get_bars", side_effect=Exception("error")
+        ):
+            await self.feed.get_close_price(code, end)
+
     async def test_batch_get_close_price_in_range(self):
         # test padding
         start = datetime.date(2022, 3, 9)
