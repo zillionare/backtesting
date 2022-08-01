@@ -286,8 +286,12 @@ class Broker:
 
             mv = 0
             for sec in secs:
-                iclose = self._index_of(closes[sec], frame, "frame")
-                mv += closes[sec][iclose]["close"] * shares.get(sec, 0)
+                if closes.get(sec) is None:
+                    price = position[position["security"] == sec]["price"].item()
+                    mv += shares.get(sec, 0) * price
+                else:
+                    iclose = self._index_of(closes[sec], frame, "frame")
+                    mv += closes[sec][iclose]["close"] * shares.get(sec, 0)
 
             i = self._index_of(self._assets, frame)
             if i is None:

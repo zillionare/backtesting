@@ -8,6 +8,7 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
+from coretypes import bars_dtype
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
@@ -678,7 +679,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         sellable = broker.get_position(datetime.date(2022, 3, 2))["sellable"].item()
         self.assertEqual(500, sellable)
 
-    async def test_recalc_assets(self):
+    @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
+    async def test_recalc_assets(self, mocked_now):
         # 回测模式
         bt_start = datetime.date(2022, 3, 1)
         bt_stop = datetime.date(2022, 3, 14)
@@ -743,6 +745,42 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                     (datetime.date(2022, 3, 8), 999507.28504219),
                     (datetime.date(2022, 3, 9), 997802.28504219),
                     (datetime.date(2022, 3, 10), 996187.28504219),
+                ],
+                dtype=[("date", "O"), ("assets", "<f8")],
+            )
+
+            np.testing.assert_array_equal(exp["date"], broker._assets["date"])
+            np.testing.assert_array_almost_equal(
+                exp["assets"], broker._assets["assets"], decimal=2
+            )
+
+        # 遇到停牌的情况，一个使用停牌前价格，一个使用成交均价
+        broker = Broker("test", 1e6, 1e-4)
+
+        await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
+        await broker.buy(tyst, 14.84, 1500, datetime.datetime(2022, 3, 4, 9, 31))
+
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range",
+            return_value={
+                tyst: np.array(
+                    [],
+                    dtype=[("frame", "O"), ("close", "<f4")],
+                )
+            },
+        ):
+
+            await broker.recalc_assets()
+            exp = np.array(
+                [
+                    (datetime.date(2022, 3, 3), 1e6),
+                    (datetime.date(2022, 3, 4), 999877.29),
+                    (datetime.date(2022, 3, 7), 992932.29),
+                    (datetime.date(2022, 3, 8), 992932.29),
+                    (datetime.date(2022, 3, 9), 992932.29),
+                    (datetime.date(2022, 3, 10), 992932.29),
+                    (datetime.date(2022, 3, 11), 992932.29),
+                    (datetime.date(2022, 3, 14), 992932.29),
                 ],
                 dtype=[("date", "O"), ("assets", "<f8")],
             )
