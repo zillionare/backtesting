@@ -1,14 +1,12 @@
 import datetime
-import os
-import pickle
 import unittest
 from unittest import mock
 
+import arrow
 import cfg4py
 import numpy as np
 import omicron
 from coretypes import FrameType
-from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 
 from backtest.config import get_config_dir
@@ -65,7 +63,8 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         ):
             await self.feed.get_close_price(code, end)
 
-    async def test_batch_get_close_price_in_range(self):
+    @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
+    async def test_batch_get_close_price_in_range(self, mocked_now):
         # test padding
         start = datetime.date(2022, 3, 9)
         end = datetime.date(2022, 3, 14)
@@ -88,6 +87,46 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
             np.testing.assert_array_almost_equal(
                 price["603717.XSHG"]["close"], [13.7, 13.7, 13.7, 10.1]
             )
+
+        # test if batch_get_bars_in_range returns empty array
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range",
+            return_value={
+                "603717.XSHG": np.array([], dtype=[("frame", "O"), ("close", "<f4")])
+            },
+        ):
+            frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
+            price = await self.feed.batch_get_close_price_in_range(
+                ["603717.XSHG"], frames
+            )
+
+            np.testing.assert_array_almost_equal(
+                price["603717.XSHG"]["close"], [10.12] * 4
+            )
+
+            # get_bars with more backward frames can return price
+            with mock.patch(
+                "omicron.models.stock.Stock.get_bars",
+                return_value=np.array(
+                    [(None, 1000)], dtype=[("frame", "O"), ("close", "f4")]
+                ),
+            ):
+                price = await self.feed.batch_get_close_price_in_range(
+                    ["603717.XSHG"], frames
+                )
+                np.testing.assert_array_almost_equal(
+                    price["603717.XSHG"]["close"], [1000] * 4
+                )
+
+            # get_bars can't return price
+            with mock.patch(
+                "omicron.models.stock.Stock.get_bars",
+                return_value=np.array([], dtype=[("frame", "O"), ("close", "f4")]),
+            ):
+                price = await self.feed.batch_get_close_price_in_range(
+                    ["603717.XSHG"], frames
+                )
+                self.assertIsNone(price.get("603717.XSHG"))
 
     async def test_get_trade_price_limits(self):
         """also test get_dr_factor"""
@@ -141,3 +180,9 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         ):
             dr = await self.feed.get_dr_factor([code], data[code]["frame"])
             np.testing.assert_array_equal(dr[code], [1.0] * 4)
+
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range", side_effect=Exception
+        ):
+            with self.assertRaises(Exception):
+                dr = await self.feed.get_dr_factor([code], data[code]["frame"])

@@ -462,3 +462,42 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await post("stop_backtest", self.token, data={})
         info = await get("info", self.token)
         self.assertEqual(info["bt_stopped"], True)
+
+    async def test_start_backtest(self):
+        # test error handling
+        principal = 1e6
+        commission = 1e-4
+
+        with self.assertRaises(BacktestError) as cm:
+            response = await post(
+                "start_backtest",
+                self.token,
+                data={
+                    "name": self.name,
+                    "principal": principal,
+                    "token": self.token,
+                    "start": "2022-03-01",
+                    "end": "2022-03-14",
+                },
+            )
+
+        self.assertEqual(cm.exception.args[0], "parameter 'commission' is required")
+
+        with self.assertRaises(BacktestError) as cm:
+            response = await post(
+                "start_backtest",
+                self.token,
+                data={
+                    "name": self.name,
+                    "principal": principal,
+                    "commission": commission,
+                    "token": self.token,
+                    "start": "hello",
+                    "end": "2022-03-14",
+                },
+            )
+
+            self.assertEqual(
+                cm.exception.args[0],
+                "parameter error: name, token, start, end, principal, commission",
+            )

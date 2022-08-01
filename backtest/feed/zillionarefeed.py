@@ -67,6 +67,17 @@ class ZillionareFeed(BaseFeed):
         try:
             for sec, values in bars.items():
                 closes = values[["frame", "close"]].astype(close_dtype)
+                if len(closes) == 0:
+                    # 遇到停牌的情况
+                    price = await self.get_close_price(sec, frames[-1], fq=fq)
+                    if price is None:
+                        result[sec] = None
+                    else:
+                        result[sec] = np.array(
+                            [(f, price) for f in frames], dtype=close_dtype
+                        )
+                    continue
+
                 closes["close"] = array_math_round(closes["close"], 2)
 
                 # find missed frames, using left fill
