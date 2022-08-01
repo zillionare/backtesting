@@ -120,6 +120,10 @@ class ZillionareFeed(BaseFeed):
                     )
                     factors = np.concatenate([factors, missed])
                     factors = np.sort(factors, order="frame")
+
+                if all(np.isnan(factors["factor"])):
+                    factors["factor"] = [1.0] * len(factors)
+                else:
                     factors["factor"] = fill_nan(factors["factor"])
 
                 result[sec] = factors["factor"] / factors["factor"][0]

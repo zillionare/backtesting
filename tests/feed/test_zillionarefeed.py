@@ -90,6 +90,7 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_get_trade_price_limits(self):
+        """also test get_dr_factor"""
         code = "002537.XSHE"
         limits = await self.feed.get_trade_price_limits(
             code, datetime.date(2022, 3, 10)
@@ -119,3 +120,24 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
             dr = dr.get("002537.XSHE")
             exp = [1.0, 1.16, 1.16, 1.16, 1.16, 1.26]
             np.testing.assert_array_almost_equal(dr, exp, decimal=2)
+
+    async def test_get_dr_factor(self):
+        # https://github.com/zillionare/trader-client/issues/13
+        code = "000001.XSHE"
+        data = {
+            code: np.array(
+                [
+                    (datetime.date(2022, 3, 7), np.nan, np.nan),
+                    (datetime.date(2022, 3, 8), np.nan, np.nan),
+                    (datetime.date(2022, 3, 9), np.nan, np.nan),
+                    (datetime.date(2022, 3, 10), np.nan, np.nan),
+                ],
+                dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
+            )
+        }
+
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_bars_in_range", return_value=data
+        ):
+            dr = await self.feed.get_dr_factor([code], data[code]["frame"])
+            np.testing.assert_array_equal(dr[code], [1.0] * 4)
