@@ -50,14 +50,10 @@ jobs:
           pip install tox tox-gh-actions poetry
 
       - name: Setup InfluxDB
-        uses: influxdata/influxdb-action@v3
-        with:
-          influxdb_version: 2.3
-          influxdb_org: my-org
-          influxdb_user: my-user
-          influxdb_password: my-password
-          influxdb_bucket: my-bucket
-          influxdb_token: my-token
+        run: |
+          sudo docker run -d -p 8086:8086 --name tox-influxdb influxdb
+          sleep 5
+          sudo docker exec -i tox-influxdb bash -c 'influx setup --username my-user --password my-password --org my-org --bucket my-bucket --token my-token --force'
 
       - name: test with tox
         run:
