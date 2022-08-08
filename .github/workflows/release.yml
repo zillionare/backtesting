@@ -76,6 +76,8 @@ jobs:
           draft: false
           prerelease: false
 
+      - uses: codecov/codecov-action@v3
+
       - name: deploy to pypi
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

@@ -1,5 +1,11 @@
+[![Version](http://img.shields.io/pypi/v/zillionare-backtest?color=brightgreen)](https://pypi.python.org/pypi/zillionare-backtest)
+[![CI Status](https://github.com/zillionare/backtesting/actions/workflows/release.yml/badge.svg)](https://github.com/zillionare/backtesting)
+[![Code Coverage](https://img.shields.io/codecov/c/github/zillionare/backtesting)](https://app.codecov.io/gh/zillionare/backtesting)
+[![Downloads](https://pepy.tech/badge/zillionare-backtest)](https://pepy.tech/project/zillionare-backtest)
+[![License](https://img.shields.io/badge/License-MIT.svg)](https://opensource.org/licenses/MIT)
+[![Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg)
 # zillionare-backtest
-
 
 zillionare-backtest是大富翁的回测服务器，它跟[zillionare-omega](https://zillionare.github.io/omega/), [zillionare-omicron](https://zillionare.github.io/omicron), [zillionare-alpha](https://zillionare.github.io/alpha), [zillionare-trader-client](https://zillionare.github.io/traderclient)共同构成回测框架。
 
