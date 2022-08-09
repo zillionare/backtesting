@@ -838,31 +838,33 @@ class Broker:
         for position in last_held_position:
             sec = position["security"]
             if sec in dr_info:
-                dr = dr_info[sec][1:]
+                dr = dr_info[sec]
             else:
                 dr = None
 
             paddings = np.array(
-                [position.item()] * (len(frames) - 1), dtype=daily_position_dtype
+                [position.item()] * len(frames), dtype=daily_position_dtype
             )
-            paddings["date"] = frames[1:]
+            paddings["date"] = frames
 
             if dr is not None:
-                adjust_shares = array_math_round(paddings["shares"] * (dr - 1), 2)
+                adjust_shares = array_math_round(
+                    paddings["shares"][1:] * np.diff(dr), 2
+                )
                 paddings["shares"] = paddings["shares"] * dr
                 paddings["price"] = paddings["price"] / dr
 
                 # 模拟一笔买单，以便此后卖出时能对应到买单。否则，将卖不出去。
                 # https://github.com/zillionare/trader-client/issues/10
                 for i, adjust_share in enumerate(adjust_shares):
-                    if adjust_share == 0:
+                    if abs(adjust_share) < 1e-5:
                         continue
 
-                    order_time = tf.combine_time(frames[1:][i], 15)
+                    order_time = tf.combine_time(frames[i + 1], 15)
                     trade = Trade(
                         uuid.uuid4(),
                         sec,
-                        paddings["price"],
+                        paddings["price"][i + 1].item(),
                         adjust_share,
                         0,
                         EntrustSide.XDXR,
@@ -872,9 +874,8 @@ class Broker:
                     self._update_unclosed_trades(trade.tid, order_time.date())
 
             paddings["sellable"][1:] = paddings["shares"][:-1]
-            paddings[0]["sellable"] = position["shares"]
 
-            padding_positions.extend(paddings)
+            padding_positions.extend(paddings[1:])
 
         if len(padding_positions):
             padding_positions.sort(key=lambda x: x[0])

@@ -8,7 +8,6 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
-from coretypes import bars_dtype
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
@@ -892,3 +891,45 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch("arrow.now", return_value=datetime.datetime(2022, 3, 14, 15)):
             await broker.buy(hljh, None, 100, datetime.datetime(2022, 3, 14, 9, 31))
             pass
+
+        # issue 17,当发生除权时，新生成的trade的价格被错误地置为数组，而不是标量
+        broker = Broker("test", 1e6, 1e-4)
+
+        logger.info("check info with xdxr")
+        broker = Broker("test", 1e6, 1e-4)
+        tyst, hljh = "603717.XSHG", "002537.XSHE"
+
+        async def make_trades():
+            await broker.buy(tyst, 14.84, 500, datetime.datetime(2022, 3, 7, 9, 41))
+            await broker.sell(tyst, 1.0, 1100, datetime.datetime(2022, 3, 14, 9, 35))
+
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+            side_effect=[
+                # no call for 3.7
+                {tyst: np.array([1, 1.1, 1.1, 1.2, 1.2, 1.4])},
+            ],
+        ):
+            await make_trades()
+
+        total_shares = 500 * 0.4
+        dr_shares = 0
+        actual = {}
+        for trade in broker.trades.values():
+            if trade.side == EntrustSide.XDXR:
+                self.assertEqual(type(trade.price), float)
+                actual[trade.time.date()] = trade.price
+                dr_shares += trade.shares
+
+        self.assertEqual(dr_shares, total_shares)
+        self.assertListEqual(
+            [
+                datetime.date(2022, 3, 8),
+                datetime.date(2022, 3, 10),
+                datetime.date(2022, 3, 14),
+            ],
+            list(actual.keys()),
+        )
+        np.testing.assert_array_almost_equal(
+            [13.49, 12.37, 10.6], list(actual.values()), decimal=2
+        )
