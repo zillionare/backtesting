@@ -1,9 +1,9 @@
 
 # 以docker容器运行
 
-docker run -d --name bt -v /host/config:/config -e PORT=3180 -p 3180:3180 backtest
+docker run -d --name bt -v /host/config:/config -v /var/log/backtest:/var/log/backtest -e PORT=3180 -p 3180:3180 backtest
 
-上述命令中，将本地配置文件目录/host/config映射到容器中的/config目录，并且指定环境变量PORT=3180,并且将容器的3180端口映射到本地的3180端口。这里本地配置文件目录映射是必须的，否则服务器无法启动。
+上述命令中，将本地配置文件目录/host/config映射到容器中的/config目录，将本地的/var/log/backtest映射到容器的/var/log/backtest，并且指定环境变量PORT=3180,并且将容器的3180端口映射到本地的3180端口。这里本地配置文件目录映射是必须的，否则服务器无法启动。如果指定了/var/log/backtest的映射，则容器的日志将输出到宿主机的/var/log/backtest目录中。
 
 如果不指定PORT，则默认为7080，此时端口映射也应该相应修改为 -p 7080:7080。
 
@@ -115,6 +115,8 @@ influxdb:
   enable_compress: true
 
 ```
+!!!Important
+    注意通过容器来使用backtest时，请确保日志文件使用默认位置，即/var/log/backtest，只有这样，您才能将其映射到宿主机上的某个文件夹，因为在容器里，我们为日志文件指定的卷(VOLUME)固定为/var/log/backtest.
 
 !!!Important
     注意配置文件中的`/backtest/api/trade/`，它用来指定backtest server监听端点的前缀，以便您在多组服务间进行区分。而最终的监听端点，则是prefix + version + command。比如，假设您的服务器地址为192.168.1.1，而端口设置为3180，当前版本为0.3，则您的[traderclient](https://zillionare.github.io/traderclient)应该指向`http://192.168.1.1:3180/backtest/api/trade/v0.3/`。您也可以通过访问`http://192.168.1.1:3180/`来得到这个监听端点地址。

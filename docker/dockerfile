@@ -3,6 +3,7 @@ FROM ubuntu:20.04
 WORKDIR /
 COPY rootfs ./
 VOLUME config
+VOLUME /var/log/backtest
 
 ARG version
 ARG pypi=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -19,8 +20,7 @@ RUN sed -i s/archive.ubuntu.com/mirrors.aliyun.com/g /etc/apt/sources.list \
     && pip3 install numpy==1.22.3 \
     && pip3 install "zillionare-omicron>=2.0.0.0.a27" --pre --default-timeout=300 \
     && pip3 install ${wheel} --default-timeout=300 \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/log/backtest
+    && rm -rf /var/lib/apt/lists/*
 
 EXPOSE $PORT
 ENTRYPOINT ["/root/zillionare/entrypoint.sh"]
