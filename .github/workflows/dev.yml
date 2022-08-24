@@ -65,14 +65,8 @@ jobs:
           poetry run mkdocs build
           git config --global user.name Docs deploy
           git config --global user.email docs@dummy.bot.com
-          poetry run mike deploy "`poetry version --short`.dev"
-          poetry run mike set-default "`poetry version --short`.dev"
-
-      - name: publish documentation
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          personal_token: ${{ secrets.PERSONAL_TOKEN }}
-          publish_dir: ./site
+          poetry run mike deploy -p -f --ignore "`poetry version --short`.dev"
+          poetry run mike set-default -p "`poetry version --short`.dev"
 
       - uses: codecov/codecov-action@v3
         with:
@@ -90,3 +84,19 @@ jobs:
           password: ${{ secrets.TEST_PYPI_API_TOKEN}}
           repository_url: https://test.pypi.org/legacy/
           skip_existing: true
+      - name: Dingtalk Robot Notify
+        if: always()
+        uses: leafney/dingtalk-action@v1.0.0
+        env:
+          DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        with:
+          msgtype: markdown
+          title: CI Notification | Success
+          text: |
+            ### Build Success
+            ${{ env.package_version_full }} is built and published to test pypi
+            ### Change History
+            Please check change history at https://${{ env.repo_owner }}.github.io/${{ env.repo_name }}/history
+            ### Package Download
+            Please download the pacakge at: https://test.pypi.org/project/${{ env.repo_name }}/
