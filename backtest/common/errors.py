@@ -24,10 +24,10 @@ class AccountError(BacktestError):
     """账户冲突，或者已冻结"""
 
     def __init__(self, msg: str = None):
-        self.msg = msg or "账户冲突，或者已冻结"
+        super().__init__(msg or "账户冲突，或者已冻结")
 
     def __str__(self):
-        return self.msg
+        return self.message
 
 
 class EntrustError(BacktestError):
