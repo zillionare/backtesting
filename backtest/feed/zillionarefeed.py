@@ -9,9 +9,8 @@ from omicron.extensions.np import fill_nan
 from omicron.models.stock import Stock
 
 from backtest.common.errors import EntrustError
+from backtest.feed import match_data_dtype
 from backtest.feed.basefeed import BaseFeed
-
-from . import match_data_dtype
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +56,14 @@ class ZillionareFeed(BaseFeed):
 
         start = frames[0]
         end = frames[-1]
-        bars = await Stock.batch_get_bars_in_range(
-            secs, FrameType.DAY, start, end, fq=fq
-        )
 
         close_dtype = [("frame", "O"), ("close", "<f4")]
         result = {}
 
         try:
-            for sec, values in bars.items():
+            async for sec, values in Stock.batch_get_day_level_bars_in_range(
+                secs, FrameType.DAY, start, end, fq=fq
+            ):
                 closes = values[["frame", "close"]].astype(close_dtype)
                 if len(closes) == 0:
                     # 遇到停牌的情况
@@ -79,6 +77,7 @@ class ZillionareFeed(BaseFeed):
                     continue
 
                 closes["close"] = array_math_round(closes["close"], 2)
+                closes["frame"] = [item.date() for item in closes["frame"]]
 
                 # find missed frames, using left fill
                 missed = np.setdiff1d(frames, closes["frame"])
@@ -111,23 +110,22 @@ class ZillionareFeed(BaseFeed):
         self, secs: Union[str, List[str]], frames: List[datetime.date]
     ) -> Dict[str, np.ndarray]:
         try:
-            data = await Stock.batch_get_bars_in_range(
-                secs, FrameType.DAY, frames[0], frames[-1], fq=False
-            )
-
             result = {}
-
-            for sec, bars in data.items():
+            async for sec, bars in Stock.batch_get_day_level_bars_in_range(
+                secs, FrameType.DAY, frames[0], frames[-1], fq=False
+            ):
                 factors = bars[["frame", "factor"]].astype(
                     [("frame", "O"), ("factor", "<f4")]
                 )
 
                 # find missed frames, using left fill
-                missed = np.setdiff1d(frames, bars["frame"])
+                missed = np.setdiff1d(
+                    frames, [item.item().date() for item in bars["frame"]]
+                )
                 if len(missed):
                     missed = np.array(
                         [(f, np.nan) for f in missed],
-                        dtype=[("frame", "O"), ("factor", "<f4")],
+                        dtype=[("frame", "datetime64[s]"), ("factor", "<f4")],
                     )
                     factors = np.concatenate([factors, missed])
                     factors = np.sort(factors, order="frame")

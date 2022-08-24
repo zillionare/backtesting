@@ -2,10 +2,9 @@ import os
 import unittest
 
 import cfg4py
-import pkg_resources
 
-from backtest.app import application_init
-from backtest.config import endpoint
+import backtest
+from backtest.app import application_exit, application_init
 from backtest.feed.zillionarefeed import ZillionareFeed
 
 
@@ -18,14 +17,12 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         await application_init(application)
 
         self.assertTrue(isinstance(application.ctx.feed, ZillionareFeed))
+        await application_exit(application)
 
-    async def test_root(self):
+    async def test_root_path(self):
         os.environ[cfg4py.envar] = "DEV"
-        from tests import init_interface_test
 
-        app = init_interface_test()
-
-        _, response = await app.asgi_client.get("/")
+        _, response = await backtest.app.application.asgi_client.get("/")
 
         self.assertEqual(response.status, 200)
         self.assertSetEqual(

@@ -8,15 +8,25 @@ import numpy as np
 import omicron
 from coretypes import FrameType
 from omicron.models.timeframe import TimeFrame as tf
+from pyemit import emit
+from sanic import Sanic
 
 from backtest.config import get_config_dir
 from backtest.feed.basefeed import BaseFeed
 from tests import data_populate
 
 
+def disable_listeners():
+    """these listener will cause omicron to be closed"""
+    app = Sanic.get_app("backtest")
+    app.ctx.before_server_start = []
+    app.ctx.after_server_start = []
+
+
 class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         cfg4py.init(get_config_dir())
+        disable_listeners()
         try:
             await omicron.init()
         except omicron.core.errors.DataNotReadyError:
@@ -26,6 +36,10 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
 
         self.feed = await BaseFeed.create_instance()
         return super().setUp()
+
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        await emit.stop()
 
     async def test_get_price_for_match(self):
         bars = await self.feed.get_price_for_match(
@@ -69,17 +83,18 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         start = datetime.date(2022, 3, 9)
         end = datetime.date(2022, 3, 14)
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range",
-            return_value={
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range",
+        ) as mocked:
+            mocked.return_value.__aiter__.return_value = {
                 "603717.XSHG": np.array(
                     [
                         (start, 13.7),
                         (end, 10.1),
                     ],
-                    dtype=[("frame", "O"), ("close", "<f4")],
+                    dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
                 )
-            },
-        ):
+            }.items()
+
             frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
             price = await self.feed.batch_get_close_price_in_range(
                 ["603717.XSHG"], frames
@@ -90,11 +105,12 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
 
         # test if batch_get_bars_in_range returns empty array
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range",
-            return_value={
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
+            mocked.return_value.__aiter__.return_value = {
                 "603717.XSHG": np.array([], dtype=[("frame", "O"), ("close", "<f4")])
-            },
-        ):
+            }.items()
+
             frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
             price = await self.feed.batch_get_close_price_in_range(
                 ["603717.XSHG"], frames
@@ -140,11 +156,11 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         data = {
             "002537.XSHE": np.array(
                 [
-                    (datetime.date(2022, 3, 7), 10, 0.95),
-                    (datetime.date(2022, 3, 8), 9, 1.1),
-                    (datetime.date(2022, 3, 14), 8, 1.2),
+                    (datetime.datetime(2022, 3, 7), 10, 0.95),
+                    (datetime.datetime(2022, 3, 8), 9, 1.1),
+                    (datetime.datetime(2022, 3, 14), 8, 1.2),
                 ],
-                dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
+                dtype=[("frame", "datetime64[s]"), ("close", "f8"), ("factor", "f8")],
             )
         }
 
@@ -152,8 +168,9 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         end = datetime.date(2022, 3, 14)
         frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range", return_value=data
-        ):
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
+            mocked.return_value.__aiter__.return_value = data.items()
             dr = await self.feed.get_dr_factor(["002537.XSHE"], frames)
 
             dr = dr.get("002537.XSHE")
@@ -166,23 +183,27 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
         data = {
             code: np.array(
                 [
-                    (datetime.date(2022, 3, 7), np.nan, np.nan),
-                    (datetime.date(2022, 3, 8), np.nan, np.nan),
-                    (datetime.date(2022, 3, 9), np.nan, np.nan),
-                    (datetime.date(2022, 3, 10), np.nan, np.nan),
+                    (datetime.datetime(2022, 3, 7), np.nan, np.nan),
+                    (datetime.datetime(2022, 3, 8), np.nan, np.nan),
+                    (datetime.datetime(2022, 3, 9), np.nan, np.nan),
+                    (datetime.datetime(2022, 3, 10), np.nan, np.nan),
                 ],
-                dtype=[("frame", "O"), ("close", "f8"), ("factor", "f8")],
+                dtype=[("frame", "datetime64[s]"), ("close", "f8"), ("factor", "f8")],
             )
         }
 
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range", return_value=data
-        ):
-            dr = await self.feed.get_dr_factor([code], data[code]["frame"])
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range",
+        ) as mocked:
+            mocked.return_value.__aiter__.return_value = data.items()
+
+            frames = [f.item().date() for f in data[code]["frame"]]
+            dr = await self.feed.get_dr_factor([code], frames)
             np.testing.assert_array_equal(dr[code], [1.0] * 4)
 
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range", side_effect=Exception
-        ):
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
+            mocked.return_value.__aiter__.side_effect = Exception
             with self.assertRaises(Exception):
                 dr = await self.feed.get_dr_factor([code], data[code]["frame"])

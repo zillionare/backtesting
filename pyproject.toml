@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-backtest"
-version = "0.4.8"
+version = "0.4.9"
 homepage = "https://github.com/zillionare/backtest"
 description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
@@ -32,7 +32,6 @@ black  = {version = "^22.3.0", optional = true}
 isort  = { version = "5.6.4", optional = true}
 flake8  = { version = "3.8.4", optional = true}
 flake8-docstrings = { version = "^1.6.0", optional = true }
-pytest  = { version = "6.1.2", optional = true}
 pytest-cov  = { version = "2.10.1", optional = true}
 tox  = { version = "^3.20.1", optional = true}
 virtualenv  = { version = "^20.2.2", optional = true}
@@ -68,6 +67,7 @@ tabulate = "^0.8.9"
 pyemit = "0.4.5"
 mike = {version = "^1.1.2", optional = true}
 async-timeout = "^4.0"
+pytest = {version = "^7.1.2", optional = true}
 
 [tool.poetry.extras]
 test = [

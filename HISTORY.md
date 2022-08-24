@@ -1,5 +1,10 @@
 # History
 
+!!! Info
+    `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
+
+## 0.4.9
+* 引入omicron 2.0.0.a37
 ## 0.4.8
 * (#17) 当持仓股存在除权除息时，会导致新增的类型为EntrustSide.XDXR的Trader,其price字段为数组，从而导致metrics计算失误（当然也会引起其它错误）。
 * (#18) 允许将日志文件目录/var/log/backtest映射到host主机上的目录。

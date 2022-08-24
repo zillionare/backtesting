@@ -70,9 +70,6 @@ class BaseFeed(metaclass=ABCMeta):
             frames: 日期列表, 日期必须是有序且连续
             fq: 是否复权。
 
-        Raises:
-            NotImplementedError:
-
         Returns:
             a dict which key is `sec` and value is a numpy array which dtype is `[("frame", "O"), ("close", "f4")]`
         """

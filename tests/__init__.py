@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 def init_interface_test():
     bp.url_prefix = endpoint()
     app.blueprint(bp)
+    app.ctx.after_server_stop = []
+    app.ctx.before_server_start = []
 
     return app
 

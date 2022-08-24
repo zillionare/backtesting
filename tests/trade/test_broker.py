@@ -8,6 +8,7 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
+import pytest
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
@@ -55,8 +56,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         return await super().asyncSetUp()
 
     async def asyncTearDown(self) -> None:
-        await omicron.close()
         await emit.stop()
+        await omicron.close()
         return await super().asyncTearDown()
 
     def _check_position(self, broker, actual, bid_time):
@@ -551,7 +552,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         broker = Broker("test", 1e6, 1e-4)
         hljh = "002537.XSHE"
 
-        await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
+        await broker.buy(hljh, 10, 500, datetime.datetime(2022, 3, 1, 9, 31))
 
         # 持仓股有停牌, https://github.com/zillionare/backtesting/issues/14
         with mock.patch(
@@ -562,7 +563,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(assets, broker.cash + 10 * 500, 2)
 
         broker = Broker("test", 1e6, 1e-4)
-        await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
+        await broker.buy(hljh, 12, 500, datetime.datetime(2022, 3, 4, 9, 31))
         with mock.patch(
             "omicron.models.stock.Stock.get_bars",
             side_effect=[np.array([]), np.array([])],
@@ -572,7 +573,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(assets, broker.cash + 500 * price, 2)
 
         broker = Broker("test", 1e6, 1e-4)
-        await broker.buy(hljh, 9.13, 500, datetime.datetime(2022, 3, 1, 9, 31))
+        await broker.buy(hljh, 12, 500, datetime.datetime(2022, 3, 1, 9, 31))
         with mock.patch(
             "omicron.models.stock.Stock.get_bars",
             side_effect=[
@@ -760,26 +761,38 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker.buy(tyst, 14.84, 1500, datetime.datetime(2022, 3, 4, 9, 31))
 
         with mock.patch(
-            "omicron.models.stock.Stock.batch_get_bars_in_range",
-            return_value={
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
+            mocked.return_value.__aiter__.return_value = {
                 tyst: np.array(
                     [],
                     dtype=[("frame", "O"), ("close", "<f4")],
-                )
-            },
-        ):
+                ),
+                hljh: np.array(
+                    [
+                        (datetime.datetime(2022, 3, 4), 9.59),
+                        (datetime.datetime(2022, 3, 7), 9.67),
+                        (datetime.datetime(2022, 3, 8), 9.12),
+                        (datetime.datetime(2022, 3, 9), 8.8),
+                        (datetime.datetime(2022, 3, 10), 9.68),
+                        (datetime.datetime(2022, 3, 11), 10.1),
+                        (datetime.datetime(2022, 3, 14), 9.56),
+                    ],
+                    dtype=[("frame", "O"), ("close", "<f4")],
+                ),
+            }.items()
 
             await broker.recalc_assets()
             exp = np.array(
                 [
                     (datetime.date(2022, 3, 3), 1e6),
                     (datetime.date(2022, 3, 4), 999877.29),
-                    (datetime.date(2022, 3, 7), 992932.29),
-                    (datetime.date(2022, 3, 8), 992932.29),
-                    (datetime.date(2022, 3, 9), 992932.29),
-                    (datetime.date(2022, 3, 10), 992932.29),
-                    (datetime.date(2022, 3, 11), 992932.29),
-                    (datetime.date(2022, 3, 14), 992932.29),
+                    (datetime.date(2022, 3, 7), 992837.29),
+                    (datetime.date(2022, 3, 8), 992562.29),
+                    (datetime.date(2022, 3, 9), 992402.29),
+                    (datetime.date(2022, 3, 10), 992842.29),
+                    (datetime.date(2022, 3, 11), 993052.29),
+                    (datetime.date(2022, 3, 14), 992782.29),
                 ],
                 dtype=[("date", "O"), ("assets", "<f8")],
             )
@@ -788,6 +801,25 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             np.testing.assert_array_almost_equal(
                 exp["assets"], broker._assets["assets"], decimal=2
             )
+
+        # issue 23,
+        broker = Broker("test", 1e6, 1e-4)
+        await broker.buy(hljh, 10.03, 500, datetime.datetime(2022, 3, 4, 9, 31))
+        await broker.sell(hljh, 0, 500, datetime.datetime(2022, 3, 7, 9, 31))
+        await broker.buy(hljh, 12, 5e4, datetime.datetime(2022, 3, 10, 9, 31))
+
+        await broker.recalc_assets()
+        exp = [
+            1e6,
+            999864.51,
+            999744.04,
+            999744.04,
+            999744.04,
+            1026198.32125,
+            1047198.34,
+            1020198.34,
+        ]
+        np.testing.assert_array_almost_equal(exp, broker._assets["assets"], decimal=2)
 
     async def test_update_positions(self):
         start = datetime.date(2022, 3, 1)

@@ -7,6 +7,9 @@ from unittest import mock
 import arrow
 import cfg4py
 import numpy as np
+import omicron
+from omicron import tf
+from pyemit import emit
 
 from backtest.common.errors import BacktestError
 from tests import (
@@ -37,6 +40,11 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         except FileNotFoundError:
             pass
 
+        try:
+            await omicron.init()
+        except Exception:
+            tf.service_degrade()
+
         await data_populate()
 
         await delete("accounts", self.admin_token)
@@ -59,6 +67,12 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response["token"], self.token)
 
         return await super().asyncSetUp()
+
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        await emit.stop()
+
+        return await super().asyncTearDown()
 
     async def test_accounts(self):
         """create, list and delete accounts"""
@@ -457,7 +471,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BacktestError) as cm:
             await post("stop_backtest", self.admin_token, data={})
 
-        self.assertEqual(cm.exception.msg, "在非回测账户上试图执行不允许的操作")
+        self.assertEqual(cm.exception.message, "在非回测账户上试图执行不允许的操作")
 
         await post("stop_backtest", self.token, data={})
         info = await get("info", self.token)
@@ -501,3 +515,45 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 cm.exception.args[0],
                 "parameter error: name, token, start, end, principal, commission",
             )
+
+    async def test_assets(self):
+        response = await post(
+            "buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
+
+        self.assertEqual(response["security"], "002537.XSHE")
+        self.assertAlmostEqual(response["price"], 9.420000076293945, 2)
+        self.assertEqual(response["filled"], 500)
+
+        response = await get(
+            "assets",
+            self.token,
+            param={
+                "start": "2022-03-01",
+                "end": "2022-03-14",
+            },
+        )
+
+        exp = [
+            1000039.53,
+            1000514.53,
+            1000594.53,
+            1000084.53,
+            1000124.53,
+            999849.53,
+            999689.53,
+            1000129.53,
+            1000339.53,
+            1000069.53,
+        ]
+
+        np.testing.assert_array_almost_equal(exp, response["assets"].tolist(), 2)

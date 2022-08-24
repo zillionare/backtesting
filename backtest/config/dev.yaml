@@ -24,3 +24,4 @@ influxdb:
   org: my-org
   bucket_name: my-bucket
   enable_compress: true
+  max_query_size: 150000
