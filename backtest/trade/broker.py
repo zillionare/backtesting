@@ -275,7 +275,9 @@ class Broker:
             return
 
         secs = position[position["shares"] != 0]["security"]
-        shares = {sec: share for sec, share in zip(secs, position["shares"])}
+        shares = {
+            sec: position[position["security"] == sec]["shares"][0] for sec in secs
+        }
 
         if len(secs):
             feed = get_app_context().feed
