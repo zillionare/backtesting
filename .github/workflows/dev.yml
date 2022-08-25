@@ -49,6 +49,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install tox tox-gh-actions poetry
 
+      # declare env.package_version, env.package_version, env.package_name, env.repo_owner, env.repo_name, so you may use it in web hooks.
+      - name: Declare variables for convenient use
+        run: |
+          echo "package_version=`poetry version --short`" >> $GITHUB_ENV
+          echo "package_name=`poetry version | awk '{print $1}'`" >> $GITHUB_ENV
+          echo "repo_owner=${GITHUB_REPOSITORY%/*}" >> $GITHUB_ENV
+          echo "repo_name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+        shell: bash
+
       - name: Setup InfluxDB
         run: |
           sudo docker run -d -p 8086:8086 --name tox-influxdb influxdb
