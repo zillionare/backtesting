@@ -18,7 +18,7 @@ RUN sed -i s/archive.ubuntu.com/mirrors.aliyun.com/g /etc/apt/sources.list \
     && pip3 config set global.index-url ${pypi} \
     && pip3 install cython \
     && pip3 install numpy==1.22.3 \
-    && pip3 install "zillionare-omicron>=2.0.0.0.a27" --pre --default-timeout=300 \
+    && pip3 install "zillionare-omicron>=2.0.0.0.a37" --pre --default-timeout=300 \
     && pip3 install ${wheel} --default-timeout=300 \
     && rm -rf /var/lib/apt/lists/*
 
