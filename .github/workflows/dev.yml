@@ -103,10 +103,6 @@ jobs:
           poetry run mike deploy -p -f --ignore "`poetry version --short`.dev"
           poetry run mike set-default -p "`poetry version --short`.dev"
 
-      - uses: codecov/codecov-action@v3
-        with:
-          fail_ci_if_error: true
-          files: coverage.xml
       - name: Build wheels and source tarball
         run: |
           poetry version $(poetry version --short)-dev.$GITHUB_RUN_NUMBER
@@ -148,7 +144,7 @@ jobs:
             ## Change Details
             ${{ github.event.head_commit.message }}
 
-            For more information, please check change history at https://${{ needs.test.outputs.repo_owner }}.github.io/${{ needs.test.outputs.repo_name }}/history
+            For more information, please check change history at https://${{ needs.test.outputs.repo_owner }}.github.io/${{ needs.test.outputs.repo_name }}/${{ needs.test.outputs.package_version }}/history
 
             ## Package Download
             The pacakge is available at: https://test.pypi.org/project/${{ needs.test.outputs.package_name }}/
