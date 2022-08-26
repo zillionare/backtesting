@@ -1771,7 +1771,7 @@ test = ["pytest", "isort", "flake8", "flake8-docstrings", "pytest-cov", "sanic-t
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "8ff01897c1d177420d93d4a9eaffa2a74483b717e5a18374d1798abe809e9642"
+content-hash = "008e7a880b4da1139ca72fd571455e5dca8f02ef50b3f1296168b02f819903e8"
 
 [metadata.files]
 aiofiles = []
