@@ -98,7 +98,7 @@ jobs:
 
       - name: build documentation
         run: |
-          poetry install -E dev
+          poetry install -E doc
           poetry run mkdocs build
           git config --global user.name Docs deploy
           git config --global user.email docs@dummy.bot.com
@@ -137,11 +137,11 @@ jobs:
           password: ${{ secrets.BUILD_NOTIFY_MAIL_PASSWORD }}
           from: build-bot
           to: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
-          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.$GITHUB_RUN_NUMBER build successfully
+          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.${{ GITHUB_RUN_NUMBER }} build successfully
           convert_markdown: true
           html_body: |
             ## Build Success
-            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.$GITHUB_RUN_NUMBER is built and published to test pypi
+            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.${{ GITHUB_RUN_NUMBER }} is built and published to test pypi
 
             ## Change Details
             ${{ github.event.head_commit.message }}
@@ -161,7 +161,7 @@ jobs:
           password: ${{ secrets.BUILD_NOTIFY_MAIL_PASSWORD }}
           from: build-bot
           to: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
-          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.$GITHUB_RUN_NUMBER build failure
+          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.${{ GITHUB_RUN_NUMBER }} build failure
           convert_markdown: true
           html_body: |
             ## Change Details
@@ -182,7 +182,7 @@ jobs:
       #     title: CI Notification | Success
       #     text: |
       #       ### Build Success
-      #       ${{ needs.test.outputs.package_version }}.dev.$GITHUB_RUN_NUMBER is built and published to test pypi
+      #       ${{ needs.test.outputs.package_version }}.dev.${{ GITHUB_RUN_NUMBER }} is built and published to test pypi
       #       ### Change History
       #       Please check change history at https://${{ needs.test.outputs.repo_owner }}.github.io/${{ needs.test.outputs.repo_name }}/${{ needs.test.outputs.package_version }}.dev/history
       #       ### Package Download
