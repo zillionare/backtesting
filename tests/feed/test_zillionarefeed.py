@@ -178,6 +178,21 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
             np.testing.assert_array_almost_equal(dr, exp, decimal=2)
 
     async def test_get_dr_factor(self):
+        start = datetime.date(2022, 3, 7)
+        end = datetime.date(2022, 3, 14)
+        frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
+
+        code = "002537.XSHE"
+        dr = await self.feed.get_dr_factor([code], frames)
+        self.assertEqual(len(dr), 1)
+        self.assertTrue(code in dr)
+        self.assertEqual(len(dr[code]), 6)
+
+        # handle missed
+        with mock.patch("numpy.setdiff1d", return_value=frames[3:5]):
+            dr = await self.feed.get_dr_factor([code], frames)
+            self.assertEqual(len(dr), 1)
+
         # https://github.com/zillionare/trader-client/issues/13
         code = "000001.XSHE"
         data = {
