@@ -137,7 +137,7 @@ jobs:
           password: ${{ secrets.BUILD_NOTIFY_MAIL_PASSWORD }}
           from: build-bot
           to: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
-          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}} build successfully
+          subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.$GITHUB_RUN_NUMBER build successfully
           convert_markdown: true
           html_body: |
             ## Build Success
