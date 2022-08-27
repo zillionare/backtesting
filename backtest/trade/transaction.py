@@ -25,7 +25,7 @@ class Transaction:
         self.fee = fee
 
         self.profit = (exit_price - entry_price) * shares - fee
-        self.pprofit = self.profit / shares
+        self.pprofit = self.profit / (entry_price * shares)
 
         try:  # 如果omicron未初始化，则不计算资产暴露窗口
             self.window = tf.count_day_frames(entry_time, exit_time)
