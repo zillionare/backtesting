@@ -1,9 +1,6 @@
-import datetime
 import logging
-import re
-from enum import Enum
+import traceback
 from functools import wraps
-from typing import Any, Union
 
 import cfg4py
 import numpy as np
@@ -11,11 +8,16 @@ from expiringdict import ExpiringDict
 from sanic import Sanic, response
 from tabulate import tabulate
 
-from backtest.common.errors import AccountError, EntrustError
+from backtest.common.errors import EntrustError
 
 seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
 
 logger = logging.getLogger(__name__)
+
+
+def get_call_stack(e: Exception) -> str:
+    """get exception callstack as a string"""
+    return "".join(traceback.format_exception(None, e, e.__traceback__))
 
 
 def get_app_context():
@@ -84,11 +86,13 @@ def protected(wrapped):
                 except EntrustError as e:
                     logger.exception(e)
                     logger.warning("request: %s failed: %s", command, params)
-                    return response.text(f"{e.status_code} {e.message}", status=499)
+                    return response.text(
+                        f"{e.status_code} {e.message}\n{get_call_stack(e)}", status=499
+                    )
                 except Exception as e:
                     logger.exception(e)
                     logger.warning("%s error: %s", f.__name__, params)
-                    return response.text(str(e), status=499)
+                    return response.text(get_call_stack(e), status=499)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
                 return response.json({"msg": "token is invalid"}, 401)

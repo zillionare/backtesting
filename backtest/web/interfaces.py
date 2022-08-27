@@ -452,6 +452,7 @@ async def get_assets(request):
     elif broker._cash.size < broker._assets.size:
         n = broker._assets.size - broker._cash.size
         cash = np.pad(broker._cash, (0, n), "edge")
+        cash["date"] = broker._assets["date"]
     else:
         cash = broker._cash
 

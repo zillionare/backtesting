@@ -483,7 +483,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         commission = 1e-4
 
         with self.assertRaises(BacktestError) as cm:
-            response = await post(
+            await post(
                 "start_backtest",
                 self.token,
                 data={
@@ -495,7 +495,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
-        self.assertEqual(cm.exception.args[0], "parameter 'commission' is required")
+        self.assertEqual(cm.exception.message, "parameter 'commission' is required")
 
         with self.assertRaises(BacktestError) as cm:
             response = await post(
@@ -534,14 +534,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(response["price"], 9.420000076293945, 2)
         self.assertEqual(response["filled"], 500)
 
-        response = await get(
-            "assets",
-            self.token,
-            param={
-                "start": "2022-03-01",
-                "end": "2022-03-14",
-            },
-        )
+        response = await get("assets", self.token, start="2022-03-01", end="2022-03-14")
 
         exp = [
             1000039.53,
@@ -557,3 +550,44 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         ]
 
         np.testing.assert_array_almost_equal(exp, response["assets"].tolist(), 2)
+
+        # issue 25
+        response = await get("assets", self.token, start="2022-03-10", end="2022-03-11")
+        np.testing.assert_array_equal(
+            [datetime.date(2022, 3, 10), datetime.date(2022, 3, 11)], response["date"]
+        )
+
+    async def test_error_reporting(self):
+        with self.assertRaises(BacktestError) as cm:
+            await post(
+                "buy",
+                self.token,
+                {
+                    "security": "002537.XSHE",
+                    "price": 0.1,
+                    "volume": 500,
+                    "timeout": 0.5,
+                    "order_time": "2022-03-01 10:04:00",
+                    "request_id": "123456789",
+                },
+            )
+        self.assertTrue("_remove_for_buy" in cm.exception.message)
+
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_price_for_match",
+            side_effect=Exception,
+        ):
+            with self.assertRaises(BacktestError) as cm:
+                await post(
+                    "buy",
+                    self.token,
+                    {
+                        "security": "002537.XSHE",
+                        "price": 0.1,
+                        "volume": 500,
+                        "timeout": 0.5,
+                        "order_time": "2022-03-01 10:04:00",
+                        "request_id": "123456789",
+                    },
+                )
+            self.assertTrue("get_price_for_match" in cm.exception.message)

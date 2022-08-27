@@ -78,7 +78,7 @@ async def post(cmd: str, token: str, data):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise BacktestError(response.status, response.text)
+        raise BacktestError(response.text)
 
 
 async def get(cmd: str, token: str, **kwargs):
