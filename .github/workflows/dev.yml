@@ -66,7 +66,7 @@ jobs:
           echo "::set-output name=repo_name::${GITHUB_REPOSITORY#*/}"
           echo "::set-output name=package_name::`poetry version | awk '{print $1}'`"
           echo "::set-output name=package_version::`poetry version --short`"
-          echo "::set-output name=build_number::${{ GITHUB_RUN_NUMBER }}"
+          echo "::set-output name=build_number::${GITHUB_RUN_NUMBER}"
         shell: bash
 
       - name: Setup InfluxDB
@@ -143,7 +143,7 @@ jobs:
           convert_markdown: true
           html_body: |
             ## Build Success
-            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.${{ needs.test.outputs.GITHUB_RUN_NUMBER }} is built and published to test pypi
+            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.${GITHUB_RUN_NUMBER} is built and published to test pypi
 
             ## Change Details
             ${{ github.event.head_commit.message }}
