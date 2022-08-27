@@ -23,6 +23,8 @@ from backtest.config import endpoint, get_config_dir
 from backtest.web.interfaces import bp
 
 os.environ[cfg4py.envar] = "DEV"
+
+os.makedirs("/var/log/backtest", exist_ok=True)
 cfg = cfg4py.init(get_config_dir())
 logger = logging.getLogger(__name__)
 
