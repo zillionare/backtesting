@@ -3,8 +3,14 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.5.0
+* [#22](https://github.com/zillionare/backtesting/issues/22) bills接口返回的'tx'字段中的pprofit计算错误
+* [#25](https://github.com/zillionare/backtesting/issues/25) get_assets中，如果传入了start参数，则会抛出"operands could not be broadcast"异常。
 ## 0.4.9
 * 引入omicron 2.0.0.a37
+* [#18](https://github.com/zillionare/backtesting/issues/18) 将容器中的/var/log/backtest目录映射到宿主机。
+* [#19](https://github.com/zillionare/backtesting/issues/19) 分红送股额显示异常
+* [#20](https://github.com/zillionare/backtesting/issues/20) 获取600361在2022-08-11的行情数据失败。
 ## 0.4.8
 * (#17) 当持仓股存在除权除息时，会导致新增的类型为EntrustSide.XDXR的Trader,其price字段为数组，从而导致metrics计算失误（当然也会引起其它错误）。
 * (#18) 允许将日志文件目录/var/log/backtest映射到host主机上的目录。
