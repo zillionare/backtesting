@@ -1172,6 +1172,8 @@ class Broker:
     ) -> int:
         """获取可卖股数
 
+        如果shares_asked与可售之间的差不足1股，则自动加上零头，确保可以卖完。
+
         Args:
             security: 证券代码
 
@@ -1185,6 +1187,8 @@ class Broker:
                 assert t.closed is False
                 shares += t._unsell
 
+        if shares - shares_asked < 1.0:
+            return shares
         return min(shares_asked, shares)
 
     def _remove_for_buy(
