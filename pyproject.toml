@@ -70,20 +70,24 @@ async-timeout = "^4.0"
 arrow = "^1.2.2"
 
 [tool.poetry.extras]
-dev = [
+test = [
     "pytest",
-    "isort",
-    "flake8",
-    "flake8-docstrings",
     "pytest-cov",
-    "sanic-testing",
-    "tox",
+    "sanic-testing"
+    ]
+
+dev = ["tox",
     "pre-commit",
     "virtualenv",
     "pip",
     "twine",
     "toml",
     "black",
+    "isort",
+    "flake8",
+    "flake8-docstrings"]
+
+doc = [
     "mkdocs",
     "mkdocs-include-markdown-plugin",
     "mkdocs-material",
