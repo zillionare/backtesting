@@ -89,14 +89,14 @@ zookeeper = ["kazoo"]
 
 [[package]]
 name = "arrow"
-version = "0.15.8"
+version = "1.2.2"
 description = "Better dates & times for Python"
 category = "main"
 optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+python-versions = ">=3.6"
 
 [package.dependencies]
-python-dateutil = "*"
+python-dateutil = ">=2.7.0"
 
 [[package]]
 name = "astunparse"
@@ -1764,14 +1764,12 @@ docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "jaraco.tideli
 testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.3)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
 
 [extras]
-dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "black"]
-doc = ["mkdocs", "mkdocs-include-markdown-plugin", "mkdocs-material", "mkdocstrings", "mkdocs-autorefs", "Jinja2", "livereload", "mike"]
-test = ["pytest", "isort", "flake8", "flake8-docstrings", "pytest-cov", "sanic-testing"]
+dev = ["pytest", "isort", "flake8", "flake8-docstrings", "pytest-cov", "sanic-testing", "tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "black", "mkdocs", "mkdocs-include-markdown-plugin", "mkdocs-material", "mkdocstrings", "mkdocs-autorefs", "Jinja2", "livereload", "mike"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "7bbac545b0de45ad972b2c86c9f8011f3aef2cb7252ca94cbcfef1aefd1acfe7"
+content-hash = "2bff91fa6a585ae961687e4daec5ee9860fad836997c7247ecd3d561c8269b3a"
 
 [metadata.files]
 aiofiles = []
@@ -1865,7 +1863,10 @@ apscheduler = [
     {file = "APScheduler-3.9.1-py2.py3-none-any.whl", hash = "sha256:ddc25a0ddd899de44d7f451f4375fb971887e65af51e41e5dcf681f59b8b2c9a"},
     {file = "APScheduler-3.9.1.tar.gz", hash = "sha256:65e6574b6395498d371d045f2a8a7e4f7d50c6ad21ef7313d15b1c7cf20df1e3"},
 ]
-arrow = []
+arrow = [
+    {file = "arrow-1.2.2-py3-none-any.whl", hash = "sha256:d622c46ca681b5b3e3574fcb60a04e5cc81b9625112d5fb2b44220c36c892177"},
+    {file = "arrow-1.2.2.tar.gz", hash = "sha256:05caf1fd3d9a11a1135b2b6f09887421153b94558e5ef4d090b567b47173ac2b"},
+]
 astunparse = [
     {file = "astunparse-1.6.3-py2.py3-none-any.whl", hash = "sha256:c2652417f2c8b5bb325c885ae329bdf3f86424075c4fd1a128674bc6fba4b8e8"},
     {file = "astunparse-1.6.3.tar.gz", hash = "sha256:5ad93a8456f0d084c3456d059fd9a92cce667963232cbf763eac3bc5b7940872"},
