@@ -3,6 +3,8 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.4.11
+*[#26](https://github.com/zillionare/backtesting/issues/26) 容器中使用了错误的numpy版本，导致了本错误。
 ## 0.4.10
 * [#22](https://github.com/zillionare/backtesting/issues/22) bills接口返回的'tx'字段中的pprofit计算错误
 * [#25](https://github.com/zillionare/backtesting/issues/25) get_assets中，如果传入了start参数，则会抛出"operands could not be broadcast"异常。
