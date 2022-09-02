@@ -44,6 +44,7 @@ if [ $MODE = "TEST" ]; then
 fi
 ```
 
+trader-client的单元测试中，会自动启动这个容器（需要事先将正确版本的image拉取到本地仓库，否则，自动拉取的永远是最新的版本）并进行测试。
 # 排错
 
 backtest提供了两个对账日志文件， /var/log/backtest/entrust.log和/var/log/backtest/trade.log（缺省位置，可以配置文件中的entrust和trade两项中的filename)。其中trade.log包括了买卖成交记录。可以根据这个文件和tests/data/validation.xlsx配合来进行对账。
@@ -51,7 +52,9 @@ backtest提供了两个对账日志文件， /var/log/backtest/entrust.log和/va
 注意两个文件的tsv文件。
 
 # 文档发布
+backtest遵照[ppw](https://zillionare.github.io/python-project-wizard)标准进行工程管理，因此，文档的发布是自动的。但是，您也可以手动构建和发布：
+
 ```
-mike deploy $version
-mike set-default $version
+mike deploy -p $version
+mike set-default -p $version
 ```

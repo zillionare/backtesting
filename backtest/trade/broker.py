@@ -20,8 +20,7 @@ from empyrical import (
     sharpe_ratio,
     sortino_ratio,
 )
-from omicron import array_price_equal, math_round
-from omicron.extensions.np import array_math_round
+from omicron.extensions import array_math_round, array_price_equal, math_round
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit

@@ -4,8 +4,7 @@ from typing import Dict, List, Union
 
 import numpy as np
 from coretypes import FrameType
-from omicron import array_math_round, math_round, tf
-from omicron.extensions.np import fill_nan
+from omicron.extensions import array_math_round, fill_nan, math_round
 from omicron.models.stock import Stock
 
 from backtest.common.errors import EntrustError

@@ -4,15 +4,15 @@ import pickle
 import arrow
 import numpy as np
 import pkg_resources
-from omicron import math_round
-from omicron.extensions.np import numpy_append_fields
+from numpy.typing import NDArray
+from omicron.extensions import numpy_append_fields
 from sanic import response
 from sanic.blueprints import Blueprint
 
 from backtest.common.errors import AccountError, EntrustError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
-from backtest.trade.datatypes import cash_dtype, rich_assets_dtype
+from backtest.trade.datatypes import cash_dtype, daily_position_dtype, rich_assets_dtype
 
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
@@ -267,7 +267,7 @@ async def market_sell(request):
 
 @bp.route("positions", methods=["GET"])
 @protected
-async def positions(request):
+async def positions(request) -> NDArray[daily_position_dtype]:
     """获取持仓信息
 
     Args:
@@ -276,7 +276,7 @@ async def positions(request):
             - date: 日期，格式为YYYY-MM-DD,待获取持仓信息的日期
 
     Returns:
-        Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为[backtest.trade.datatypes.position_dtype][]
+        Response: 结果以binary方式返回。结果为一个numpy structured array数组，其dtype为[backtest.trade.datatypes.daily_position_dtype][]
 
     """
     date = request.args.get("date")
