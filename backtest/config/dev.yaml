@@ -4,6 +4,20 @@ logging:
       class: logging.handlers.RotatingFileHandler
       formatter: default
       filename: /tmp/backtest.log
+    entrust:
+      class: logging.handlers.RotatingFileHandler
+      formatter: bare
+      filename: /tmp/entrust.log
+      maxBytes: 10485760
+      backupCount: 10
+      encoding: utf-8
+    trade:
+      class: logging.handlers.RotatingFileHandler
+      formatter: bare
+      filename: /tmp/trade.log
+      maxBytes: 10485760
+      backupCount: 10
+      encoding: utf-8
   root:
     handlers:
       - console

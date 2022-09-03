@@ -35,8 +35,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         cfg = cfg4py.init(get_config_dir())
 
         try:
-            os.remove("/var/log/backtest/entrust.log")
-            os.remove("/var/log/backtest/trade.log")
+            os.remove("/tmp/backtest/trade.log")
+            os.remove("/tmp/backtest/entrust.log")
         except FileNotFoundError:
             pass
 
