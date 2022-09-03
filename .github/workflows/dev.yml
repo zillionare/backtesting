@@ -188,7 +188,7 @@ jobs:
       #     title: CI Notification | Success
       #     text: |
       #       ### Build Success
-      #       ${{ needs.test.outputs.package_version }}.dev.${{ github.run_number }} is built and published to test pypi
+      #       ${{ needs.test.outputs.package_version }}.dev.${{ github.run_number }}published to TEST pypi
       #       ### Change History
       #       Please check change history at https://${{ needs.test.outputs.repo_owner }}.github.io/${{ needs.test.outputs.repo_name }}/${{ needs.test.outputs.package_version }}.dev/history
       #       ### Package Download
