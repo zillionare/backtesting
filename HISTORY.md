@@ -3,8 +3,8 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
-## 0.4.12
-*[#27](https://github.com/zillionare/backtesting/issues/27) 采用omicron 2.0.0.a41,修复此问题。
+## 0.4.12 （2022-09-03）
+*[#27](https://github.com/zillionare/backtesting/issues/27) 通过升级omicron到2.0.0.a41,修复此问题。
 ## 0.4.11
 *[#26](https://github.com/zillionare/backtesting/issues/26) 容器中使用了错误的numpy版本，导致了本错误。
 ## 0.4.10

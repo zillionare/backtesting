@@ -1704,11 +1704,15 @@ requests = ">=2.26"
 
 [[package]]
 name = "zigzag"
-version = "0.2.2"
+version = "0.3.2"
 description = "Package for finding peaks and valleys of time series."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
+
+[package.dependencies]
+Cython = ">=0.29,<0.30"
+numpy = ">=1.21.1"
 
 [[package]]
 name = "zillionare-core-types"
@@ -1730,7 +1734,7 @@ test = ["black (>=22.3.0,<23.0.0)", "flake8 (==3.8.4)", "flake8-docstrings (>=1.
 
 [[package]]
 name = "zillionare-omicron"
-version = "2.0.0a41"
+version = "2.0.0a42"
 description = "Core Library for Zillionare"
 category = "main"
 optional = false
@@ -1744,7 +1748,6 @@ arrow = ">=0.15.8"
 Bottleneck = ">=1.3.4,<2.0.0"
 cfg4py = ">=0.9"
 ciso8601 = ">=2.2.0,<3.0.0"
-Cython = ">=0.29.28,<0.30.0"
 deprecation = ">=2.1.0,<3.0.0"
 empyrical-reloaded = ">=0.5.8,<0.6.0"
 httpx = ">=0.23.0,<0.24.0"
@@ -1754,11 +1757,11 @@ pandas = ">=1.3.5,<2.0.0"
 pyreadline = ">=2.1,<3.0"
 scikit-learn = ">=1.0.2,<2.0.0"
 sh = "1.14.1"
-ZigZag = ">=0.2.2,<0.3.0"
+zigzag = ">=0.3,<0.4"
 zillionare-core-types = ">=0.5.2,<0.6.0"
 
 [package.extras]
-dev = ["pip (>=22.0.3,<23.0.0)", "pre-commit (>=2.17.0,<3.0.0)", "toml (>=0.10.2,<0.11.0)", "tox (>=3.24.5,<4.0.0)", "twine (>=3.8.0,<4.0.0)", "virtualenv (>=20.13.1,<21.0.0)"]
+dev = ["pip (>=22.0.3,<23.0.0)", "pre-commit (>=2.17.0,<3.0.0)", "toml (>=0.10.2,<0.11.0)", "tox (>=3.24.5,<4.0.0)", "twine (>=3.8.0,<4.0.0)"]
 doc = ["livereload (>=2.6.3,<3.0.0)", "mike (>=1.1.2,<2.0.0)", "mkdocs (>=1.3.0,<2.0.0)", "mkdocs-autorefs (>=0.3.1,<0.4.0)", "mkdocs-include-markdown-plugin (>=3.2.3,<4.0.0)", "mkdocs-material (>=8.1.11,<9.0.0)", "mkdocstrings (>=0.18.0,<0.19.0)"]
 test = ["black (>=22.3.0,<23.0.0)", "flake8 (==4.0.1)", "flake8-docstrings (>=1.6.0,<2.0.0)", "freezegun (>=1.2.1,<2.0.0)", "isort (==5.10.1)", "psutil (>=5.7.3,<6.0.0)", "pytest (>=7.0.1,<8.0.0)", "pytest-cov (>=3.0.0,<4.0.0)"]
 
@@ -1782,7 +1785,7 @@ test = ["pytest", "pytest-cov", "sanic-testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "1068a88f29e52586ff4a6232c4be226b33d32e05cbee334a5844023e5e41e1a5"
+content-hash = "929ed3b4a081d1c2cc6e957bcbcc038262071967571180d7b14f9a0d4c1af244"
 
 [metadata.files]
 aiofiles = [
@@ -3323,15 +3326,16 @@ yfinance = [
     {file = "yfinance-0.1.74.tar.gz", hash = "sha256:a0c29f9c9ed3595749d0cd19acf65f96f20e4376084795497f53cd8b263b54c7"},
 ]
 zigzag = [
-    {file = "ZigZag-0.2.2.tar.gz", hash = "sha256:e370278bfb5f133024b3e0cbaa585807328b93d3c3e453e470bb80793df9d464"},
+    {file = "zigzag-0.3.2-cp38-cp38-manylinux_2_31_x86_64.whl", hash = "sha256:cd190984d02e4e5ddc2ea49ee035cf5b0682e67febcca0b565e2d6f2995e5501"},
+    {file = "zigzag-0.3.2.tar.gz", hash = "sha256:543083cdd64ec4ccc590c0ba4e831bdb3fbac5623dbd39169acbf5ab034213dd"},
 ]
 zillionare-core-types = [
     {file = "zillionare_core_types-0.5.2-py3-none-any.whl", hash = "sha256:77c997daea13257da5e87ee09c812d6a80cf0c76163b9e5b49cd5a801e940a4d"},
     {file = "zillionare_core_types-0.5.2.tar.gz", hash = "sha256:99ef98891a898248f9027272595678cae0ee5ae9e641259160dd2c94ad4a1491"},
 ]
 zillionare-omicron = [
-    {file = "zillionare-omicron-2.0.0a41.tar.gz", hash = "sha256:22890bf8c180f353f778f428292affdf3b9a452814c183a34ae2d17434a1f91f"},
-    {file = "zillionare_omicron-2.0.0a41-py3-none-any.whl", hash = "sha256:266908f89f8981171381e223c50a77b047c81ece69173926e24d8e28a2a5f22c"},
+    {file = "zillionare-omicron-2.0.0a42.tar.gz", hash = "sha256:8568f3f02afc8cbf027861aca0349d5885666d4133a63f67cf1d75ea38fbe193"},
+    {file = "zillionare_omicron-2.0.0a42-py3-none-any.whl", hash = "sha256:878f212796d7dd450ed689b2c0dc200b43dec5ded3d156366250f05fecfbec29"},
 ]
 zipp = [
     {file = "zipp-3.8.1-py3-none-any.whl", hash = "sha256:47c40d7fe183a6f21403a199b3e4192cca5774656965b0a4988ad2f8feb5f009"},

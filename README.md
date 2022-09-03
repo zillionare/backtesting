@@ -52,6 +52,8 @@ zillionare-backtest的功能是提供账户管理、交易撮合和策略评估�
 
 ## 停牌处理
 如果某支持仓股当前停牌，在计算持仓市值时，系统会使用停牌前的收盘价来计算市值。为性能优化考验，如果一支股票停牌时间超过500个交易日，则系统将放弃继续向前搜索停牌前的收盘价，改用买入时的成交均价来代替。这种情况应该相当罕见。
+# 版本历史
+关于版本历史，请查阅[版本历史](history)
 # Credits
 
 Zillionare-backtest项目是通过[Python Project Wizard](zillionare.github.io/python-project-wizard)创建的。
