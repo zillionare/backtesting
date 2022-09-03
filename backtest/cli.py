@@ -10,8 +10,8 @@ import time
 
 import cfg4py
 import fire
+import httpx
 import psutil
-import requests
 from tqdm import tqdm
 
 from backtest.config import endpoint, get_config_dir
@@ -48,7 +48,7 @@ def is_running(port, endpoint):
     url = f"http://localhost:{port}/{endpoint}/status"
 
     try:
-        r = requests.get(url)
+        r = httpx.get(url)
         return r.status_code == 200
     except Exception:
         return False
