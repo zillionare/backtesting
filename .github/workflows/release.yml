@@ -157,9 +157,9 @@ jobs:
           msgtype: markdown
           title: CI Notification | Success
           text: |
-            ### Build Success
-            ${{ needs.release.outputs.package_version }} is built and published to pypi
+            ### ${{ needs.release.outputs.package_name }} Build Success
+            ${{ needs.release.outputs.package_version }} is published to pypi
             ### Change History
             Please check change history at https://${{ needs.release.outputs.repo_owner }}.github.io/${{ needs.release.outputs.repo_name }}/latest/history
             ### Package Download
-            Please download the pacakge at: https://test.pypi.org/project/${{ needs.release.outputs.repo_name }}/
+            Please download the pacakge at: https://pypi.org/project/${{ needs.release.outputs.repo_name }}/
