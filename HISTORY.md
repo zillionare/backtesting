@@ -3,6 +3,8 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.4.13 (2022-09-08)
+* [#28](https://github.com/zillionare/backtesting/issues/28) 通过升级omicron到2.0.0.a45，修复此问题。
 ## 0.4.12 （2022-09-03）
 *[#27](https://github.com/zillionare/backtesting/issues/27) 通过升级omicron到2.0.0.a41,修复此问题。
 ## 0.4.11

@@ -51,6 +51,11 @@ backtest提供了两个对账日志文件， /var/log/backtest/entrust.log和/va
 
 注意两个文件的tsv文件。
 
+如果容器构建失败，可以运行下面的命令，进入容器调试:
+```
+docker run -d --name tox-bt -e MODE=TEST -e PORT=3180 -p 3180:3180 backtest
+```
+
 # 文档发布
 backtest遵照[ppw](https://zillionare.github.io/python-project-wizard)标准进行工程管理，因此，文档的发布是自动的。但是，您也可以手动构建和发布：
 

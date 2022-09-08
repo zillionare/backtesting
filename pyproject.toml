@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-backtest"
-version = "0.4.12"
+version = "0.4.13"
 homepage = "https://github.com/zillionare/backtest"
 description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
@@ -63,7 +63,7 @@ pyemit = "0.4.5"
 async-timeout = "^4.0"
 arrow = "^1.2.2"
 httpx = "^0.23.0"
-zillionare-omicron = {version = "^2.0.0.a42", allow-prereleases = true}
+zillionare-omicron = {version = "^2.0.0.a44", allow-prereleases = true}
 
 [tool.poetry.extras]
 test = [
