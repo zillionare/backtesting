@@ -792,7 +792,7 @@ class Broker:
             prev, cash = self._cash[-1]
 
             frames = tf.get_frames(prev, bid_time, FrameType.DAY)[1:]
-            if frames.size > 0:
+            if len(frames) > 0:
                 recs = [(tf.int2date(date), cash) for date in frames]
 
                 self._cash = np.concatenate(
