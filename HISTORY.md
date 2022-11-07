@@ -3,6 +3,9 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.4.16 (2022-11-07)
+* [#29](https://github.com/zillionare/backtesting/issues/29) 股票进行了分红配股后，查询有持仓，却无法卖出。
+* [#30](https://github.com/zillionare/backtesting/issues/30) 持仓显示个股股数为很小的小数
 ## 0.4.13 (2022-09-08)
 * [#28](https://github.com/zillionare/backtesting/issues/28) 通过升级omicron到2.0.0.a45，修复此问题。
 ## 0.4.12 （2022-09-03）

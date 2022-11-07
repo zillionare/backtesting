@@ -19,6 +19,8 @@ jobs:
   # This workflow contains a single job called "build"
   test:
     # The type of runner that the job will run on
+    env:
+      IS_GITHUB: 1
     strategy:
       matrix:
         python-versions: [3.8]

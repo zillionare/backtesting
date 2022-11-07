@@ -872,7 +872,7 @@ class Broker:
                         order_time,
                     )
                     self.trades[trade.tid] = trade
-                    self._update_unclosed_trades(trade.tid, order_time.date())
+                    self._update_unclosed_trades(trade.tid, bid_time.date())
 
             paddings["sellable"][1:] = paddings["shares"][:-1]
 
@@ -931,10 +931,12 @@ class Broker:
                     / (old_shares + new_shares),
                 )
             else:
-                shares = math_round(old_shares - trade.shares, 4)
-                sellable = math_round(old_sellable - trade.shares, 4)
-                if shares == 0:
+                shares = old_shares - trade.shares
+                sellable = old_sellable - trade.shares
+                if shares <= 0.1:
                     old_price = 0
+                    shares = 0
+                    sellable = 0
                 self._positions[i] = (
                     bid_date,
                     trade.security,
@@ -1129,6 +1131,7 @@ class Broker:
         shares_to_sell = self._get_sellable_shares(security, bid_shares, bid_time)
         if shares_to_sell == 0:
             logger.info("卖出失败: %s %s %s, 可用股数为0", security, bid_shares, bid_time)
+            logger.info("%s", self.get_unclosed_trades(bid_time.date()))
             raise EntrustError(
                 EntrustError.NO_POSITION, security=security, time=bid_time
             )
@@ -1186,7 +1189,7 @@ class Broker:
                 assert t.closed is False
                 shares += t._unsell
 
-        if shares - shares_asked < 1.0:
+        if shares - shares_asked < 100:
             return shares
         return min(shares_asked, shares)
 
