@@ -966,13 +966,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             [13.49, 12.37, 10.6], list(actual.values()), decimal=2
         )
 
-    @pytest.mark.skip
-    # if(os.environ.get("IS_GITHUB"), reason="don't run this on github")
+    @pytest.mark.skip(os.environ.get("IS_GITHUB"))
     async def test_issue_with_local_omicron(self):
         try:
             config_dir = os.path.expanduser("~/zillionare/notebook")
             cfg = cfg4py.init(config_dir)
 
+            await omicron.close()
             await omicron.init()
             await emit.start(emit.Engine.REDIS, start_server=True, dsn=cfg.redis.dsn)
 
@@ -980,15 +980,15 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.ctx.feed = ZillionareFeed()
             await self.ctx.feed.init()
 
-            start = datetime.date(2014, 1, 1)
-            end = datetime.date(2014, 12, 31)
+            start = datetime.date(2022, 10, 1)
+            end = datetime.date(2022, 10, 31)
 
             broker = Broker("test", 1_000_000, 1e-4, start, end)
             await broker.buy(
-                "002278.XSHE", 11.8, 500, datetime.datetime(2014, 4, 21, 9, 31)
+                "300539.XSHE", 9.26, 1000, datetime.datetime(2022, 10, 10, 9, 31)
             )
             await broker.sell(
-                "002278.XSHE", 10, 557.83, datetime.datetime(2014, 10, 20, 9, 30)
+                "300539.XSHE", 8.98, 1000, datetime.datetime(2022, 10, 21, 9, 30)
             )
 
         finally:

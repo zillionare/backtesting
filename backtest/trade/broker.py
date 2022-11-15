@@ -649,7 +649,10 @@ class Broker:
             )
 
         mean_price, filled, close_time = self._match_buy(bars, shares_to_buy)
-
+        if filled == 0:
+            raise EntrustError(
+                EntrustError.VOLUME_NOT_ENOUGH, security=security, price=bid_price
+            )
         return await self._fill_buy_order(en, mean_price, filled, close_time)
 
     def _match_buy(

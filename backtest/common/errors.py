@@ -42,6 +42,7 @@ class EntrustError(BacktestError):
     NODATA_FOR_MATCH = -7
     NODATA = -8
     TIME_REWIND = -9
+    VOLUME_NOT_ENOUGH = -10
 
     def __init__(self, status_code: int, **kwargs):
         self.status_code = status_code
@@ -58,4 +59,5 @@ class EntrustError(BacktestError):
             EntrustError.NODATA_FOR_MATCH: "没有匹配到{security}在{time}的成交数据",
             EntrustError.NODATA: "获取{security}在{time}的行情数据失败，请检查日期是否为交易日，或者当天是否停牌",
             EntrustError.TIME_REWIND: "委托时间必须递增出现。当前{time}, 前一个委托时间{last_trade_time}",
+            EntrustError.VOLUME_NOT_ENOUGH: "{security}委托价{price}达到，但成交量为零。",
         }.get(self.status_code)

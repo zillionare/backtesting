@@ -3,6 +3,8 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.4.17 (2022-11-15)
+    [#31](https://github.com/zillionare/backtesting/issues/31) 撮合时，如果价格能匹配，但成交量为零，则会导致计算买入/卖出均价错误。修复后，遇到此种情况，会抛出VOLUME_NOT_ENOUGH异常，客户端需要以合适的价格重新填单以完成交易。
 ## 0.4.16 (2022-11-07)
 * [#29](https://github.com/zillionare/backtesting/issues/29) 股票进行了分红配股后，查询有持仓，却无法卖出。
 * [#30](https://github.com/zillionare/backtesting/issues/30) 持仓显示个股股数为很小的小数
