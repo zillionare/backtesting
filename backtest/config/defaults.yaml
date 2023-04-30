@@ -14,39 +14,10 @@ logging:
     file:
       class: logging.handlers.RotatingFileHandler
       formatter: default
-      filename: /var/log/zillionare/backtest/backtest.log
+      filename: /var/log/chatter/chatter.log
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
-    entrust:
-      class: logging.handlers.RotatingFileHandler
-      formatter: bare
-      filename: /var/log/zillionare/backtest/entrust.log
-      maxBytes: 10485760
-      backupCount: 10
-      encoding: utf-8
-    trade:
-      class: logging.handlers.RotatingFileHandler
-      formatter: bare
-      filename: /var/log/zillionare/backtest/trade.log
-      maxBytes: 10485760
-      backupCount: 10
-      encoding: utf-8
-  loggers:
-    apscheduler:
-      level: INFO
-    sanic:
-      level: WARNING
-    cfg4py:
-      level: WARNING
-    entrust:
-      level: INFO
-      handlers: [entrust]
-      propagate: false
-    trade:
-      level: INFO
-      handlers: [trade]
-      propagate: false
   root:
     handlers:
       - file

@@ -31,3 +31,6 @@ class Transaction:
             self.window = tf.count_day_frames(entry_time, exit_time)
         except Exception:
             pass
+
+    def __str__(self):
+        return f"{self.sec} {self.entry_time}买入({self.entry_price}, {self.exit_time}卖出({self.exit_price}), profit {self.exit_price/self.entry_price - 1:.2%}"

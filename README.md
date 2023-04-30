@@ -19,6 +19,12 @@ zillionare-backtest的功能是提供账户管理、交易撮合和策略评估�
 ## 账户管理
 当您开始回测时，先通过[start_backtest][backtest.web.interfaces.start_backtest]来创建一个账户。在知道该账户的`name`与`token`的情况下，您可以在随后通过[delete_accounts][backtest.web.interfaces.delete_accounts]来删除账户。
 
+在回测完成时，请记得调用stop_backtest。
+
+在回测完成时，stop_backtest会将资产表更新到回测结束日（否则，只更新到最后一次交易当天，因为服务器完全由客户端来驱动，自己没有时间概念）。但并不会对当前持仓进行卖出操作，原因是：
+1. 卖出操作将修改transactions表。而新增的transaction并不是策略触发的
+2. 不利于评估策略的真实情况。如果在回测期出现仅有一笔真实交易，其它都是被终末强平的话，那么此次回测实际上可能在时间上、或者策略周期上没有选好。如果回测系统进行强平，就可能掩盖这种事实。
+3. 在回测终末期，可能存在股票因跌停而无法卖出的情况；或者股票停牌中，无法卖出。这些情况下，模拟卖出也有难度。
 ## 交易撮合
 
 您可以通过[buy][backtest.web.interfaces.buy], [market_buy][backtest.web.interfaces.market_buy], [sell][backtest.web.interfaces.sell], [market_sell][backtest.web.interfaces.market_sell]和[sell_percent][backtest.web.interfaces.sell_percent]来进行交易。

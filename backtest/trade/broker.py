@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import logging
 import uuid
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import arrow
 import cfg4py
@@ -40,6 +40,7 @@ from backtest.trade.datatypes import (
     rich_assets_dtype,
 )
 from backtest.trade.trade import Trade
+from backtest.trade.transaction import Transaction
 
 cfg = cfg4py.get_instance()
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class Broker:
         self.trades = {}
 
         # trasaction = buy + sell trade
-        self.transactions = []
+        self.transactions: List[Transaction] = []
 
         self._lock = asyncio.Lock()
 
@@ -228,7 +229,7 @@ class Broker:
 
         return result[list(dtype.names)].astype(dtype)
 
-    async def recalc_assets(self, end: datetime.date = None):
+    async def recalc_assets(self, end: Optional[datetime.date] = None):
         """重新计算账户的每日资产
 
         计算完成后，资产表将包括从账户开始前一日，到`end`日的资产数据。从账户开始前一日起，是为了方便计算首个交易日的收益。
@@ -1073,12 +1074,18 @@ class Broker:
         await emit.emit(E_BACKTEST, {"sell": jsonify(exit_trades)})
         return exit_trades
 
-    async def sell(self, *args, **kwargs) -> List[Trade]:
+    async def sell(
+        self,
+        security: str,
+        bid_price: Union[None, float],
+        bid_shares: float,
+        bid_time: datetime.datetime,
+    ) -> List[Trade]:
         """卖出委托
 
         Args:
             security str: 委托证券代码
-            price float: 出售价格，如果为None，则为市价委托
+            bid_price float: 出售价格，如果为None，则为市价委托
             bid_shares float: 询卖股数。注意我们不限制必须以100的倍数卖出。
             bid_time datetime.datetime: 委托时间
 
@@ -1088,12 +1095,12 @@ class Broker:
         """
         # 同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化
         async with self.lock:
-            return await self._sell(*args, **kwargs)
+            return await self._sell(security, bid_price, bid_shares, bid_time)
 
     async def _sell(
         self,
         security: str,
-        bid_price: float,
+        bid_price: Union[None, float],
         bid_shares: float,
         bid_time: datetime.datetime,
     ) -> List[Trade]:
@@ -1257,9 +1264,9 @@ class Broker:
 
     async def metrics(
         self,
-        start: datetime.date = None,
-        end: datetime.date = None,
-        baseline: str = None,
+        start: Optional[datetime.date] = None,
+        end: Optional[datetime.date] = None,
+        baseline: Optional[str] = None,
     ) -> Dict:
         """获取指定时间段的账户指标
 
@@ -1304,9 +1311,17 @@ class Broker:
         end = max(end or self.account_end_date, self.account_end_date)
 
         tx = []
+        logger.info("%s tx in total", len(self.transactions))
         for t in self.transactions:
             if t.entry_time.date() >= start and t.exit_time.date() <= end:
                 tx.append(t)
+            else:
+                logger.info(
+                    "tx %s not in range, start: %s, end: %s",
+                    t.sec,
+                    t.entry_time,
+                    t.exit_time,
+                )
 
         # 资产暴露时间
         window = tf.count_day_frames(start, end)
