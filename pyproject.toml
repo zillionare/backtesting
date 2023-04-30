@@ -21,8 +21,9 @@ packages = [
 
 [[tool.poetry.source]]
 name = "ali"
-url = "https://mirrors.aliyun.com/pypi/simple/"
-secondary = true
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true
+secondary = false
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.9"
@@ -62,6 +63,7 @@ tabulate = "^0.8.9"
 async-timeout = "^4.0"
 zillionare-omicron = {version = "^2.0.0a57", allow-prereleases = true}
 pyemit = "^0.5.0"
+websockets = "<11.0"
 
 [tool.poetry.extras]
 test = [
