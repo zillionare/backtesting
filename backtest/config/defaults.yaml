@@ -14,7 +14,7 @@ logging:
     file:
       class: logging.handlers.RotatingFileHandler
       formatter: default
-      filename: /var/log/chatter/chatter.log
+      filename: /var/log/backtest/backtest.log
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
@@ -35,11 +35,11 @@ feed:
 postgres:
   enabled: false
 redis:
-  dsn: redis://localhost:6379
+  dsn: redis://192.168.100.101:56379
 influxdb:
   url: http://192.168.100.101:58086
   token: hwxHycJfp_t6bCOYe2MhEDW4QBOO4FDtgeBWnPR6bGZJGEZ_41m_OHtTJFZKyD2HsbVqkZM8rJNkMvjyoXCG6Q==
-  org: zillonare
-  bucket_name: zillonare
+  org: zillionare
+  bucket_name: zillionare
   enable_compress: true
   max_query_size: 5000

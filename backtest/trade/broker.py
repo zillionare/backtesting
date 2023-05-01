@@ -229,7 +229,9 @@ class Broker:
 
         return result[list(dtype.names)].astype(dtype)
 
-    async def recalc_assets(self, end: Optional[datetime.date] = None):
+    async def recalc_assets(
+        self, start: Optional[datetime.date] = None, end: Optional[datetime.date] = None
+    ):
         """重新计算账户的每日资产
 
         计算完成后，资产表将包括从账户开始前一日，到`end`日的资产数据。从账户开始前一日起，是为了方便计算首个交易日的收益。
@@ -255,7 +257,7 @@ class Broker:
                 [(_before_start, self.principal)], dtype=assets_dtype
             )
 
-        start = tf.day_shift(self._assets[-1]["date"], 1)
+        start = start or tf.day_shift(self._assets[-1]["date"], 1)
         if start >= end:
             return
 
@@ -303,7 +305,7 @@ class Broker:
                     axis=0,
                 )
             else:
-                self._assets[i]["cash"] = float(cash + mv)
+                self._assets[i]["assets"] = float(cash + mv)
 
     async def info(self, dt: datetime.date = None) -> Dict:
         """`dt`日的账号相关信息
@@ -437,7 +439,10 @@ class Broker:
         return pos[0]
 
     async def _calc_assets(self, date: datetime.date) -> Tuple[float]:
-        """计算某日的总资产，并缓存
+        """计算某日的总资产
+
+        此函数不更新资产表，以避免资产表中留下空洞。比如：
+        当前最后交易日为4月10日，4月17日发生一笔委卖，导致cash/position记录更新到4/17，但资产表仍然保持在4月10日，此时如果缓存该记录，将导致资产表中留下空洞。
 
         Args:
             date: 计算哪一天的资产
@@ -473,15 +478,6 @@ class Broker:
                     market_value += shares * price
 
         assets = cash + market_value
-
-        i = self._index_of(self._assets, date)
-        if i is None:
-            self._assets = np.append(
-                self._assets, np.array([(date, assets)], dtype=assets_dtype)
-            )
-        else:
-            # don't use self._assets[self._assets["date"] == date], this always return copy
-            self._assets[i]["assets"] = assets
 
         return assets, cash, market_value
 
@@ -555,7 +551,13 @@ class Broker:
             logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
             raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
 
-    async def buy(self, *args, **kwargs) -> Trade:
+    async def buy(
+        self,
+        security: str,
+        bid_price: float,
+        bid_shares: int,
+        bid_time: datetime.datetime,
+    ) -> Trade:
         """买入委托
 
         买入以尽可能实现委托为目标。如果可用资金不足，但能买入部分股票，则部分买入。
@@ -567,14 +569,13 @@ class Broker:
             bid_price float: 委托价格。如果为None，则为市价委托
             bid_shares int: 询买的股数
             bid_time datetime.datetime: 委托时间
-            request_id str: 请求ID
 
         Returns:
             [Trade][backtest.trade.trade.Trade]对象
         """
         # 同一个账户，也可能出现并发的买单和卖单，这些操作必须串行化
         async with self.lock:
-            return await self._buy(*args, **kwargs)
+            return await self._buy(security, bid_price, bid_shares, bid_time)
 
     async def _buy(
         self,
@@ -582,7 +583,7 @@ class Broker:
         bid_price: float,
         bid_shares: int,
         bid_time: datetime.datetime,
-    ) -> Dict:
+    ) -> Trade:
         entrustlog.info(
             f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.BUY}"
         )
@@ -783,6 +784,7 @@ class Broker:
         Returns:
             无
         """
+        logger.info("bid_time is %s", bid_time)
         await self._calendar_validation(bid_time)
 
         # 补齐可用将资金表
@@ -972,18 +974,27 @@ class Broker:
         start = tf.day_shift(self._assets[-1]["date"], 1)
         end = tf.day_shift(bid_time, -1)
         if start < end:
-            await self.recalc_assets(end)
+            await self.recalc_assets(start, end)
 
-        bid_time = bid_time.date()
+        bid_date = bid_time.date()
 
         # _before_trade应该已经为当日交易准备好了可用资金数据
-        assert self._cash[-1]["date"] == bid_time
+        assert self._cash[-1]["date"] == bid_date
         self._cash[-1]["cash"] += cash_change
 
-        assets, cash, mv = await self._calc_assets(bid_time)
+        assets, cash, mv = await self._calc_assets(bid_date)
+
+        i = self._index_of(self._assets, bid_date)
+        if i is None:
+            self._assets = np.append(
+                self._assets, np.array([(bid_date, assets)], dtype=assets_dtype)
+            )
+        else:
+            # don't use self._assets[self._assets["date"] == date], this always return copy
+            self._assets[i]["assets"] = assets
 
         info = np.array(
-            [(bid_time, assets, cash, mv, cash_change)],
+            [(bid_date, assets, cash, mv, cash_change)],
             dtype=[
                 ("date", "O"),
                 ("assets", float),

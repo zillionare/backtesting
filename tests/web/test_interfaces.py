@@ -550,6 +550,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(response["price"], 9.420000076293945, 2)
         self.assertEqual(response["filled"], 500)
 
+        await post("stop_backtest", self.token, data={})
         response = await get("assets", self.token, start="2022-03-01", end="2022-03-14")
 
         exp = [
