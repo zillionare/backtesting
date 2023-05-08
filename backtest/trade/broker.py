@@ -1277,7 +1277,7 @@ class Broker:
         self,
         start: Optional[datetime.date] = None,
         end: Optional[datetime.date] = None,
-        baseline: Optional[str] = None,
+        baseline: Optional[str] = "399300.XSHE",
     ) -> Dict:
         """获取指定时间段的账户指标
 
@@ -1393,13 +1393,14 @@ class Broker:
                 returns = ref_bars["close"][1:] / ref_bars["close"][:-1] - 1
 
                 ref_results = {
-                    "code": baseline,
-                    "win_rate": np.count_nonzero(returns > 0) / len(returns),
-                    "sharpe": sharpe_ratio(returns, rf),
-                    "max_drawdown": max_drawdown(returns),
-                    "sortino": sortino_ratio(returns, rf),
-                    "annual_return": annual_return(returns),
                     "total_profit_rate": cum_returns_final(returns),
+                    "win_rate": np.count_nonzero(returns > 0) / len(returns),
+                    "mean_return": np.mean(returns).item(),
+                    "sharpe": sharpe_ratio(returns, rf),
+                    "sortino": sortino_ratio(returns, rf),
+                    "calmar": calmar_ratio(returns),
+                    "max_drawdown": max_drawdown(returns),
+                    "annual_return": annual_return(returns),
                     "volatility": annual_volatility(returns),
                 }
         else:
