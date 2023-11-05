@@ -47,7 +47,7 @@ logging:
   disable_existing_loggers: false
   formatters:
     default:
-      format: '%(asctime)s %(levelname)-1.1s %(process)d %(name)s:%(funcName)s:%(lineno)s | %(message)s'
+      format: '%(bt_date)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s | %(message)s'
     bare:
       format: '%(message)s'
   handlers:
@@ -120,6 +120,9 @@ influxdb:
 
 !!!Important
     注意配置文件中的`/backtest/api/trade/`，它用来指定backtest server监听端点的前缀，以便您在多组服务间进行区分。而最终的监听端点，则是prefix + version + command。比如，假设您的服务器地址为192.168.1.1，而端口设置为3180，当前版本为0.3，则您的[traderclient](https://zillionare.github.io/traderclient)应该指向`http://192.168.1.1:3180/backtest/api/trade/v0.3/`。您也可以通过访问`http://192.168.1.1:3180/`来得到这个监听端点地址。
+
+!!!Info
+    这里的`bt_date`并非 Python 中 logging 模块支持的模式串关键字，它来自于[omicron.core.backtestlog](https://zillionare.github.io/omicron/latest/api/omicron/#backtesting-log-facility)，该功能从omicron 2.0.0.a76版本之后提供。
 
 第一部分是告诉backtest如何输出日志。注意这里除了配置一般日志外，还配置了entrust和trade两个事务日志，这两个日志是供数据校验使用的。
 

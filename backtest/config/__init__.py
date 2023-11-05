@@ -6,15 +6,15 @@ Author: Aaron-Yang [code@jieyu.ai]
 Contributors:
 
 """
-import logging
 import os
 import sys
 from importlib.metadata import version
 from os import path
 
 import cfg4py
+from omicron.core.backtestlog import BacktestLogger
 
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 
 
 def get_config_dir():

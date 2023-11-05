@@ -1,11 +1,12 @@
 import datetime
-import logging
 import uuid
+
+from omicron.core.backtestlog import BacktestLogger
 
 from backtest.trade.datatypes import EntrustSide
 from backtest.trade.transaction import Transaction
 
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 
 
 class Trade:
@@ -48,7 +49,7 @@ class Trade:
         self.closed = False
 
         if side == EntrustSide.XDXR:
-            logger.info("XDXR entrust: %s", self)
+            logger.info("XDXR entrust: %s", self, date=time)
 
     def __str__(self):
         return f"证券代码: {self.security}\n成交方向: {self.side}\n成交均价: {self.price}\n数量: {self.shares}\n手续费: {self.fee}\n委托号: {self.eid}\n成交号: {self.tid}\n成交时间: {self.time}\n"
@@ -109,7 +110,9 @@ class Trade:
             self._unamortized_fee -= amortized_buy_fee
 
             if self._unsell == 0:
-                logger.debug("交易%s (%s)已close.", self.security, self.tid)
+                logger.debug(
+                    "交易%s (%s)已close.", self.security, self.tid, date=close_time
+                )
                 self.closed = True
 
             trade = Trade(

@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import unittest
 from unittest import mock
@@ -9,10 +8,17 @@ import cfg4py
 import numpy as np
 import omicron
 import pytest
+from coretypes.errors.trade import (
+    BuylimitError,
+    CashError,
+    PositionError,
+    SellLimitError,
+    TimeRewindError,
+)
+from omicron.core.backtestlog import BacktestLogger
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
-from backtest.common.errors import EntrustError
 from backtest.common.helper import get_app_context, tabulate_numpy_array
 from backtest.config import get_config_dir
 from backtest.feed.zillionarefeed import ZillionareFeed
@@ -27,7 +33,7 @@ from backtest.trade.datatypes import (
 from backtest.trade.trade import Trade
 from tests import assert_deep_almost_equal, data_populate
 
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 
 
 class BrokerTest(unittest.IsolatedAsyncioTestCase):
@@ -147,11 +153,11 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self._check_position(broker, positions, datetime.date(2022, 3, 10))
 
         # 买入时已经涨停
-        with self.assertRaises(EntrustError) as cm:
+        with self.assertRaises(BuylimitError) as cm:
             result = await broker.buy(
-                hljh, 9.68, 10e4, datetime.datetime(2022, 3, 10, 14, 33)
+                hljh, 9.68, 1.0e5, datetime.datetime(2022, 3, 10, 14, 33)
             )
-            self.assertEqual(cm.exception.status_code, EntrustError.REACH_BUY_LIMIT)
+            self.assertTrue(isinstance(cm, BuylimitError))
 
         # 进入到下一个交易日，此时position中应该有可以卖出的股票
         ## 买入价为11.3,全部成交
@@ -174,11 +180,11 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         # 资金不足,委托失败
         broker._cash = np.array([(datetime.date(2022, 3, 11), 100)], dtype=cash_dtype)
 
-        with self.assertRaises(EntrustError) as cm:
+        with self.assertRaises(CashError) as cm:
             result = await broker.buy(
                 hljh, 10.20, 10e4, datetime.datetime(2022, 3, 11, 9, 35)
             )
-            self.assertEqual(cm.exception.status_code, EntrustError.NO_CASH)
+            self.assertTrue(isinstance(cm, CashError))
 
     async def test_get_unclosed_trades(self):
         broker = Broker("test", 1e10, 1e-4)
@@ -227,9 +233,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             datetime.datetime(2022, 3, 7, 14, 26),
         )
 
-        with self.assertRaises(EntrustError) as cm:
+        with self.assertRaises(PositionError) as cm:
             result = await broker.sell(tyst, bid_price, bid_shares, bid_time)
-            self.assertEqual(EntrustError.NO_POSITION, cm.exception.status_code)
+            self.assertTrue(isinstance(cm, PositionError))
 
         await broker.buy(tyst, 14.79, 1000, mar_8)
         await broker.buy(hljh, 8.95, 1000, mar_9)
@@ -273,9 +279,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             datetime.datetime(2022, 3, 10, 14, 55),
         )
 
-        with self.assertRaises(EntrustError) as cm:
+        with self.assertRaises(SellLimitError) as cm:
             await broker.sell(tyst, bid_price, bid_shares, bid_time)
-            self.assertEqual(EntrustError.REACH_SELL_LIMIT, cm.exception.status_code)
+            self.assertTrue(isinstance(cm, SellLimitError))
 
         # 余额不足： 尽可能卖出
         bid_price, bid_shares, bid_time = (
@@ -851,11 +857,11 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "002537.XSHE", 10.03, 500, datetime.datetime(2022, 3, 4, 9, 32)
         )
 
-        with self.assertRaises(EntrustError) as cm:
+        with self.assertRaises(TimeRewindError) as cm:
             await broker.buy(
                 "002537.XSHE", 14.84, 1500, datetime.datetime(2022, 3, 4, 9, 31)
             )
-        self.assertEqual(cm.exception.status_code, EntrustError.TIME_REWIND)
+            self.assertTrue(isinstance(cm, TimeRewindError))
 
     async def test_fillup_positions(self):
         start = datetime.date(2022, 3, 1)

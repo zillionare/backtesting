@@ -1,23 +1,17 @@
-import logging
 import traceback
 from functools import wraps
 
 import cfg4py
 import numpy as np
+from coretypes.errors.trade import TradeError
 from expiringdict import ExpiringDict
+from omicron.core.backtestlog import BacktestLogger
 from sanic import Sanic, response
 from tabulate import tabulate
 
-from backtest.common.errors import EntrustError
-
 seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
 
-logger = logging.getLogger(__name__)
-
-
-def get_call_stack(e: Exception) -> str:
-    """get exception callstack as a string"""
-    return "".join(traceback.format_exception(None, e, e.__traceback__))
+logger = BacktestLogger.getLogger(__name__)
 
 
 def get_app_context():
@@ -83,16 +77,15 @@ def protected(wrapped):
                     result = await f(request, *args, **kwargs)
                     logger.info("finished request: %s, params %s", command, params)
                     return result
-                except EntrustError as e:
-                    logger.exception(e)
+                except TradeError as e1:
+                    logger.exception(e1)
                     logger.warning("request: %s failed: %s", command, params)
-                    return response.text(
-                        f"{e.status_code} {e.message}\n{get_call_stack(e)}", status=499
-                    )
+                    return response.json(e1.as_json(), status=499)
                 except Exception as e:
                     logger.exception(e)
                     logger.warning("%s error: %s", f.__name__, params)
-                    return response.text(get_call_stack(e), status=499)
+                    e2 = TradeError(str(e))
+                    return response.json(e2.as_json(), status=499)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
                 return response.json({"msg": "token is invalid"}, 401)
@@ -155,7 +148,7 @@ def jsonify(obj) -> dict:
         A dict able to be json dumps
     """
     if obj is None or isinstance(obj, (str, int, float, bool)):
-        return obj
+        return obj  # type: ignore
     elif getattr(obj, "to_dict", False):
         return jsonify(obj.to_dict())
     elif getattr(obj, "tolist", False):  # for numpy array
@@ -165,7 +158,7 @@ def jsonify(obj) -> dict:
     elif isinstance(obj, dict):
         return {k: jsonify(v) for k, v in obj.items()}
     elif getattr(obj, "__iter__", False):  # 注意dict类型也有__iter__
-        return [jsonify(x) for x in obj]
+        return [jsonify(x) for x in obj]  # type: ignore
     elif getattr(obj, "__dict__", False):
         return {k: jsonify(v) for k, v in obj.__dict__.items()}
     else:

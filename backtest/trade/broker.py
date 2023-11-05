@@ -11,6 +11,19 @@ import arrow
 import cfg4py
 import numpy as np
 from coretypes import Frame, FrameType
+from coretypes.errors.trade import (
+    AccountStoppedError,
+    BadParamsError,
+    BuylimitError,
+    CashError,
+    NoDataForMatch,
+    PositionError,
+    PriceNotMeet,
+    SellLimitError,
+    TimeRewindError,
+    TradeError,
+    VolumeNotMeet,
+)
 from empyrical import (
     annual_return,
     annual_volatility,
@@ -20,12 +33,12 @@ from empyrical import (
     sharpe_ratio,
     sortino_ratio,
 )
+from omicron.core.backtestlog import BacktestLogger
 from omicron.extensions import array_math_round, array_price_equal, math_round
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame as tf
 from pyemit import emit
 
-from backtest.common.errors import AccountError, BadParameterError, EntrustError
 from backtest.common.helper import get_app_context, jsonify, tabulate_numpy_array
 from backtest.trade.datatypes import (
     E_BACKTEST,
@@ -43,7 +56,7 @@ from backtest.trade.trade import Trade
 from backtest.trade.transaction import Transaction
 
 cfg = cfg4py.get_instance()
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 entrustlog = logging.getLogger("entrust")
 tradelog = logging.getLogger("trade")
 
@@ -54,8 +67,8 @@ class Broker:
         account_name: str,
         principal: float,
         commission: float,
-        bt_start: datetime.date = None,
-        bt_end: datetime.date = None,
+        bt_start: Optional[datetime.date] = None,
+        bt_end: Optional[datetime.date] = None,
     ):
         """创建一个Broker对象
 
@@ -79,8 +92,8 @@ class Broker:
             self.bt_stop = None
 
         # 最后交易时间
-        self._last_trade_time: datetime.datetime = None
-        self._first_trade_time: datetime.datetime = None
+        self._last_trade_time: Optional[datetime.datetime] = None
+        self._first_trade_time: Optional[datetime.datetime] = None
 
         self.account_name = account_name
         self.commission = commission
@@ -129,7 +142,7 @@ class Broker:
         return self._cash[-1]["cash"].item()
 
     @property
-    def account_start_date(self) -> datetime.date:
+    def account_start_date(self) -> Optional[datetime.date]:
         if self.mode == "bt":
             return self.bt_start
         else:
@@ -140,7 +153,7 @@ class Broker:
             )
 
     @property
-    def account_end_date(self) -> datetime.date:
+    def account_end_date(self) -> Optional[datetime.date]:
         if self.mode == "bt":
             return self.bt_stop
         else:
@@ -176,7 +189,7 @@ class Broker:
 
         result = self._cash[self._cash["date"] == dt]["cash"]
         if result.size == 0:
-            raise ValueError(f"{dt} not found")
+            raise BadParamsError(f"date {dt} not found")
         else:
             return result.item()
 
@@ -225,7 +238,7 @@ class Broker:
 
         result = self._positions[self._positions["date"] == dt]
         if result.size == 0:
-            raise ValueError(f"{dt} not found")
+            raise BadParamsError(f"param dt {dt} not found")
 
         return result[list(dtype.names)].astype(dtype)
 
@@ -376,7 +389,9 @@ class Broker:
         ]
 
         if assets.size == 0:
-            raise ValueError(f"date range error: {start} - {end} contains no data")
+            raise TradeError(
+                f"date range error: {start} - {end} contains no data", with_stack=True
+            )
 
         return assets["assets"][1:] / assets["assets"][:-1] - 1
 
@@ -454,7 +469,7 @@ class Broker:
             return self.principal, 0, 0
 
         if (self.mode == "bt" and date > self.bt_stop) or date > arrow.now().date():
-            raise ValueError(
+            raise BadParamsError(
                 f"wrong date: {date}, date must be before {self.bt_stop} or {arrow.now().date()}"
             )
 
@@ -522,39 +537,39 @@ class Broker:
             bid_time : 交易发生的时间
         """
         if self.mode == "bt" and self._bt_stopped:
-            logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
-            raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
+            logger.warning(
+                "委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop, date=bid_time
+            )
+            raise AccountStoppedError(bid_time, self.bt_stop, with_stack=True)
 
         if self._first_trade_time is None:
             self._first_trade_time = bid_time
         elif bid_time < self._first_trade_time:
-            logger.warning("委托时间必须递增出现: %s -> %s", self._first_trade_time, bid_time)
-            raise EntrustError(
-                EntrustError.TIME_REWIND,
-                time=bid_time,
-                last_trade_time=self._first_trade_time,
+            logger.warning(
+                "委托时间必须递增出现: %s -> %s", self._first_trade_time, bid_time, date=bid_time
             )
+            raise TimeRewindError(bid_time, self._first_trade_time, with_stack=True)
 
         if self._last_trade_time is None or bid_time >= self._last_trade_time:
             self._last_trade_time = bid_time
         else:
-            logger.warning("委托时间必须递增出现：%s -> %s", self._last_trade_time, bid_time)
-            raise EntrustError(
-                EntrustError.TIME_REWIND,
-                time=bid_time,
-                last_trade_time=self._last_trade_time,
+            logger.warning(
+                "委托时间必须递增出现：%s -> %s", self._last_trade_time, bid_time, date=bid_time
             )
+            raise TimeRewindError(bid_time, self._last_trade_time, with_stack=True)
 
         if self.mode == "bt" and bid_time.date() > self.bt_stop:
             self._bt_stopped = True
             await self.recalc_assets()
-            logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop)
-            raise AccountError(f"下单时间为{bid_time},而账户已于{self.bt_stop}冻结。")
+            logger.warning(
+                "委托时间超过回测结束时间: %s, %s", bid_time, self.bt_stop, date=bid_time
+            )
+            raise AccountStoppedError(bid_time, self.bt_stop, with_stack=True)
 
     async def buy(
         self,
         security: str,
-        bid_price: float,
+        bid_price: Union[int, float],
         bid_shares: int,
         bid_time: datetime.datetime,
     ) -> Trade:
@@ -581,7 +596,7 @@ class Broker:
         self,
         security: str,
         bid_price: float,
-        bid_shares: int,
+        bid_shares: Union[float, int],
         bid_time: datetime.datetime,
     ) -> Trade:
         entrustlog.info(
@@ -605,12 +620,12 @@ class Broker:
         )
 
         logger.info(
-            "买入委托(%s): %s %d %s, 单号：%s",
-            bid_time,
+            "买入委托: %s %d %s, 单号：%s",
             security,
             bid_shares,
             bid_price,
             en.eid,
+            date=bid_time,
         )
 
         self.entrusts[en.eid] = en
@@ -624,10 +639,10 @@ class Broker:
         # 获取用以撮合的数据
         bars = await feed.get_price_for_match(security, bid_time)
         if bars.size == 0:
-            logger.warning("failed to match %s, no data at %s", security, bid_time)
-            raise EntrustError(
-                EntrustError.NODATA_FOR_MATCH, security=security, time=bid_time
+            logger.warning(
+                "failed to match %s, no data at %s", security, bid_time, date=bid_time
             )
+            raise NoDataForMatch(security, bid_time, with_stack=True)
 
         # 移除掉涨停和价格高于委买价的bar后，看还能买多少股
         bars = self._remove_for_buy(
@@ -642,19 +657,20 @@ class Broker:
         # 必须以手为单位买入，否则委托会失败
         shares_to_buy = shares_to_buy // 100 * 100
         if shares_to_buy < 100:
-            logger.info("委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid)
-            raise EntrustError(
-                EntrustError.NO_CASH,
-                account=self.account_name,
-                required=100 * bid_price,
-                available=self.cash,
+            logger.info(
+                "委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid, date=bid_time
+            )
+            raise CashError(
+                self.account_name,
+                100 * shares_to_buy * bid_price,
+                self.cash,
+                with_stack=True,
             )
 
         mean_price, filled, close_time = self._match_buy(bars, shares_to_buy)
         if filled == 0:
-            raise EntrustError(
-                EntrustError.VOLUME_NOT_ENOUGH, security=security, price=bid_price
-            )
+            raise VolumeNotMeet(security, bid_price, with_stack=True)
+
         return await self._fill_buy_order(en, mean_price, filled, close_time)
 
     def _match_buy(
@@ -745,25 +761,25 @@ class Broker:
         await self._update_positions(trade, close_time.date())
 
         logger.info(
-            "买入成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
-            close_time,
+            "买入成交: %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
             en.security,
             filled,
             price,
             fee,
             en.eid,
             trade.tid,
+            date=close_time,
         )
         tradelog.info(
             f"{en.bid_time.date()}\t{en.side}\t{en.security}\t{filled}\t{price}\t{fee}"
         )
 
         logger.info(
-            "%s 买入后持仓: \n%s",
-            close_time.date(),
+            "买入后持仓: \n%s",
             tabulate_numpy_array(
                 self.get_position(close_time.date(), daily_position_dtype)
             ),
+            date=close_time,
         )
 
         # 当发生新的买入时，更新资产
@@ -784,7 +800,7 @@ class Broker:
         Returns:
             无
         """
-        logger.info("bid_time is %s", bid_time)
+        logger.info("before trade", date=bid_time)
         await self._calendar_validation(bid_time)
 
         # 补齐可用将资金表
@@ -815,7 +831,9 @@ class Broker:
             return
 
         prev = self._positions[-1]["date"]
-        logger.info("handling positions fillup from %s to %s", prev, bid_time)
+        logger.info(
+            "handling positions fillup from %s to %s", prev, bid_time, date=bid_time
+        )
         frames = [
             tf.int2date(frame) for frame in tf.get_frames(prev, bid_time, FrameType.DAY)
         ]
@@ -962,7 +980,7 @@ class Broker:
             cash_change : 变动的现金
             bid_time: 委托时间
         """
-        logger.info("cash change: %s", cash_change)
+        logger.info("cash change: %s", cash_change, date=bid_time)
 
         # 补齐资产表到上一个交易日
         if self._assets.size == 0:
@@ -1003,7 +1021,7 @@ class Broker:
                 ("change", float),
             ],
         )
-        logger.info("\n%s", tabulate_numpy_array(info))
+        logger.info("\n%s", tabulate_numpy_array(info), date=bid_date)
 
     async def _fill_sell_order(
         self, en: Entrust, price: float, to_sell: float
@@ -1044,14 +1062,14 @@ class Broker:
                 )
 
                 logger.info(
-                    "卖出成交(%s): %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
-                    exit_trade.time,
+                    "卖出成交: %s (%d %.2f %.2f),委单号: %s, 成交号: %s",
                     en.security,
                     exit_trade.shares,
                     exit_trade.price,
                     exit_trade.fee,
                     en.eid,
                     exit_trade.tid,
+                    date=exit_trade.time,
                 )
                 tradelog.info(
                     f"{en.bid_time.date()}\t{exit_trade.side}\t{exit_trade.security}\t{exit_trade.shares}\t{exit_trade.price}\t{exit_trade.fee}"
@@ -1075,9 +1093,9 @@ class Broker:
         self._unclosed_trades[dt] = unclosed_trades
 
         logger.info(
-            "%s 卖出后持仓: \n%s",
-            dt,
+            "卖出后持仓: \n%s",
             tabulate_numpy_array(self.get_position(dt, daily_position_dtype)),
+            date=dt,
         )
 
         await self._update_assets(refund, en.bid_time)
@@ -1122,7 +1140,7 @@ class Broker:
         entrustlog.info(
             f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.SELL}"
         )
-        logger.info("卖出委托(%s): %s %s %s", bid_time, security, bid_price, bid_shares)
+        logger.info("卖出委托: %s %s %s", security, bid_price, bid_shares, date=bid_time)
         _, _, sell_limit_price = await feed.get_trade_price_limits(
             security, bid_time.date()
         )
@@ -1136,10 +1154,10 @@ class Broker:
         # fill the order, get mean price
         bars = await feed.get_price_for_match(security, bid_time)
         if bars.size == 0:
-            logger.warning("failed to match: %s, no data at %s", security, bid_time)
-            raise EntrustError(
-                EntrustError.NODATA_FOR_MATCH, security=security, time=bid_time
+            logger.warning(
+                "failed to match: %s, no data at %s", security, bid_time, date=bid_time
             )
+            raise NoDataForMatch(security, bid_time, with_stacks=True)
 
         bars = self._remove_for_sell(
             security, bid_time, bars, bid_price, sell_limit_price
@@ -1151,11 +1169,9 @@ class Broker:
 
         shares_to_sell = self._get_sellable_shares(security, bid_shares, bid_time)
         if shares_to_sell == 0:
-            logger.info("卖出失败: %s %s %s, 可用股数为0", security, bid_shares, bid_time)
-            logger.info("%s", self.get_unclosed_trades(bid_time.date()))
-            raise EntrustError(
-                EntrustError.NO_POSITION, security=security, time=bid_time
-            )
+            logger.info("卖出失败: %s %s, 可用股数为0", security, bid_shares, date=bid_time)
+            logger.info("%s", self.get_unclosed_trades(bid_time.date()), date=bid_time)
+            raise PositionError(security, bid_time, with_stack=True)
 
         # until i the order can be filled
         where_total_filled = np.argwhere(cum_v >= shares_to_sell)
@@ -1180,12 +1196,12 @@ class Broker:
         )
 
         logger.info(
-            "委卖%s(%s), 成交%s股，均价%.2f, 成交时间%s",
+            "委卖%s(%s), 成交%s股，均价%.2f",
             en.security,
             en.eid,
             filled,
             mean_price,
-            close_time,
+            date=close_time,
         )
 
         return await self._fill_sell_order(en, mean_price, filled)
@@ -1229,18 +1245,11 @@ class Broker:
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
-            raise EntrustError(
-                EntrustError.REACH_BUY_LIMIT, security=security, time=order_time
-            )
+            raise BuylimitError(security, order_time, with_stack=True)
 
         bars = bars[(bars["price"] <= price)]
         if bars.size == 0:
-            raise EntrustError(
-                EntrustError.PRICE_NOT_MEET,
-                security=security,
-                time=order_time,
-                entrust=price,
-            )
+            raise PriceNotMeet(security, price, order_time, with_stack=True)
 
         return bars
 
@@ -1257,15 +1266,11 @@ class Broker:
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
-            raise EntrustError(
-                EntrustError.REACH_SELL_LIMIT, security=security, time=order_time
-            )
+            raise SellLimitError(security, order_time, with_stack=True)
 
         bars = bars[(bars["price"] >= price)]
         if bars.size == 0:
-            raise EntrustError(
-                EntrustError.PRICE_NOT_MEET, security=security, entrust=price
-            )
+            raise PriceNotMeet(security, price, order_time, with_stack=True)
 
         return bars
 

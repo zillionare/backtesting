@@ -1,5 +1,4 @@
 """Unit test package for backtest."""
-import logging
 import os
 import pickle
 import socket
@@ -11,22 +10,23 @@ import arrow
 import cfg4py
 import numpy as np
 import pandas as pd
-import pkg_resources
 from coretypes import FrameType, bars_dtype
+from coretypes.errors.trade import TradeError
+from omicron.core.backtestlog import BacktestLogger
 from omicron.dal.influx.influxclient import InfluxClient
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame
 
 from backtest.app import application as app
-from backtest.common.errors import BacktestError
 from backtest.config import endpoint, get_config_dir
 from backtest.web.interfaces import bp
+
+logger = BacktestLogger.getLogger(__name__)
 
 os.environ[cfg4py.envar] = "DEV"
 
 os.makedirs("/tmp/backtest", exist_ok=True)
 cfg = cfg4py.init(get_config_dir())
-logger = logging.getLogger(__name__)
 
 
 def init_interface_test():
@@ -60,7 +60,10 @@ async def delete(cmd: str, token: str, params=None):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise BacktestError(response.status, response.text)
+        if response.json is None:
+            raise TradeError(response.text)
+        else:
+            raise TradeError.from_json(response.json)
 
 
 async def post(cmd: str, token: str, data):
@@ -78,7 +81,10 @@ async def post(cmd: str, token: str, data):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise BacktestError(response.text)
+        if response.json is None:
+            raise TradeError(response.text)
+        else:
+            raise TradeError.from_json(response.json)
 
 
 async def get(cmd: str, token: str, **kwargs):
@@ -97,7 +103,10 @@ async def get(cmd: str, token: str, **kwargs):
         else:
             return pickle.loads(response.content)
     if response.status == 499:
-        raise BacktestError(response.status, response.text)
+        if response.json is None:
+            raise TradeError(response.text)
+        else:
+            raise TradeError.from_json(response.json)
 
 
 def data_dir():

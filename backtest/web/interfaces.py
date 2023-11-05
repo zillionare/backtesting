@@ -1,15 +1,19 @@
-import logging
 import pickle
 
 import arrow
 import numpy as np
 import pkg_resources
+from coretypes.errors.trade import (
+    AccountConflictError,
+    BadParamsError,
+    PositionError,
+    TradeError,
+)
 from numpy.typing import NDArray
 from omicron.extensions import numpy_append_fields
 from sanic import response
 from sanic.blueprints import Blueprint
 
-from backtest.common.errors import AccountError, EntrustError
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
 from backtest.trade.datatypes import cash_dtype, daily_position_dtype, rich_assets_dtype
@@ -17,7 +21,9 @@ from backtest.trade.datatypes import cash_dtype, daily_position_dtype, rich_asse
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
 bp = Blueprint("backtest")
-logger = logging.getLogger(__name__)
+from omicron.core.backtestlog import BacktestLogger
+
+logger = BacktestLogger.getLogger(__name__)
 
 
 @bp.route("status", methods=["GET"])
@@ -64,13 +70,15 @@ async def start_backtest(request):
         commission = params["commission"]
     except KeyError as e:
         logger.warning(f"parameter {e} is required")
-        return response.text(f"parameter {e} is required", status=499)
+        error = BadParamsError(f"parameter {e} is required")
+        return response.json(error.as_json(), status=499)
     except Exception as e:
         logger.exception(e)
-        return response.text(
+        error = TradeError(
             "parameter error: name, token, start, end, principal, commission",
-            status=499,
+            with_stack=True,
         )
+        return response.json(error.as_json(), status=499)
 
     accounts = request.app.ctx.accounts
     try:
@@ -79,8 +87,8 @@ async def start_backtest(request):
         )
         logger.info("backtest account created:", result)
         return response.json(jsonify(result))
-    except AccountError as e:
-        return response.text(e.message, status=499)
+    except AccountConflictError as e:
+        return response.json(e.as_json(), status=499)
 
 
 @bp.route("stop_backtest", methods=["POST"])
@@ -95,7 +103,7 @@ async def stop_backtest(request):
     """
     broker = request.ctx.broker
     if broker.mode != "bt":
-        raise AccountError("在非回测账户上试图执行不允许的操作")
+        raise TradeError("在非回测账户上试图执行不允许的操作", with_stack=True)
 
     if not broker._bt_stopped:
         broker._bt_stopped = True
@@ -232,7 +240,7 @@ async def sell_percent(request):
     position = broker.get_position(order_time.date())
     sellable = position[position["security"] == security]
     if sellable.size == 0:
-        raise EntrustError(EntrustError.NO_POSITION, security=security, time=order_time)
+        raise PositionError(security, order_time, with_stack=True)
 
     sellable = sellable[0]["sellable"] * percent
 

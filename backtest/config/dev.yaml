@@ -1,9 +1,15 @@
 logging:
+  formatters:
+    default:
+      format: '%(asctime)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s
+        | %(message)s'
+    backtest:
+      format: '%(bt_date)s | %(message)s'
   handlers:
-    file:
+    default:
       class: logging.handlers.RotatingFileHandler
       formatter: default
-      filename: /tmp/backtest.log
+      filename: /tmp/sys.log
     entrust:
       class: logging.handlers.RotatingFileHandler
       formatter: bare
@@ -18,9 +24,18 @@ logging:
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
+    backtest:
+      class: logging.handlers.RotatingFileHandler
+      formatter: backtest
+      filename: /tmp/backtest.log
+  loggers:
+    backtest:
+      level: INFO
+      handlers: [backtest]
+      propagate: false
   root:
     handlers:
-      - console
+      - default
     level: INFO
 
 feed:

@@ -22,6 +22,7 @@ RUN sed -i s/archive.ubuntu.com/mirrors.aliyun.com/g /etc/apt/sources.list \
     && pip3 install cython \
     && pip3 install numpy>=1.23.2 \
     && pip3 install ${wheel} --default-timeout=300 \
+    && pip3 install ${omicron} --default-timeout=300 \
     && rm -rf /var/lib/apt/lists/*
 
 EXPOSE $PORT

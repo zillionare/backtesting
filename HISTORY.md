@@ -3,6 +3,9 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.4.2 （2023-11-5）
+    * 引入zillionare-core-types 0.6.2的异常类体系，实现了层次化的异常，以及异常串行化（可从backtesting传送到traderclient并恢复）
+    * 引入omicron.core.backtestlog，实现回测时日志输出使用回测时间，而非系统时间。
 ## 0.4.17 (2022-11-15)
     [#31](https://github.com/zillionare/backtesting/issues/31) 撮合时，如果价格能匹配，但成交量为零，则会导致计算买入/卖出均价错误。修复后，遇到此种情况，会抛出VOLUME_NOT_ENOUGH异常，客户端需要以合适的价格重新填单以完成交易。
 ## 0.4.16 (2022-11-07)

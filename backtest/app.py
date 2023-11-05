@@ -1,11 +1,11 @@
 """Main module."""
-import logging
 import os
 import sys
 
 import cfg4py
 import fire
 import omicron
+from omicron.core.backtestlog import BacktestLogger
 from omicron.models.timeframe import TimeFrame
 from pyemit import emit
 from sanic import Sanic, response
@@ -16,7 +16,7 @@ from backtest.web.accounts import Accounts
 from backtest.web.interfaces import bp, ver
 
 application = Sanic("backtest")
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 
 
 @application.route("/")

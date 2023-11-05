@@ -8,10 +8,11 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
+from coretypes.errors.trade import AccountStoppedError, BadParamsError, PriceNotMeet
+from coretypes.errors.trade.base import TradeError
 from omicron import tf
 from pyemit import emit
 
-from backtest.common.errors import BacktestError
 from tests import (
     assert_deep_almost_equal,
     data_populate,
@@ -316,7 +317,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                         "request_id": uuid.uuid4().hex,
                     },
                 )
-            except BacktestError:
+            except TradeError:
                 pass
 
         await post(
@@ -466,7 +467,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await delete("accounts", self.token, params={"name": self.name})
 
     async def test_frozen_accounts(self):
-        with self.assertRaises(BacktestError) as cm:
+        with self.assertRaises(AccountStoppedError) as cm:
             await post(
                 "buy",
                 self.token,
@@ -479,16 +480,19 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                     "request_id": "123456789",
                 },
             )
-        self.assertTrue(str(cm.exception).find("冻结") > 0)
+        self.assertTrue(isinstance(cm.exception, AccountStoppedError))
 
     async def test_stop_backtest(self):
         info = await get("info", self.token)
         self.assertEqual(info["bt_stopped"], False)
 
-        with self.assertRaises(BacktestError) as cm:
+        with self.assertRaises(TradeError) as cm:
             await post("stop_backtest", self.admin_token, data={})
 
-        self.assertEqual(cm.exception.message, "在非回测账户上试图执行不允许的操作")
+        self.assertTrue(isinstance(cm.exception, TradeError))
+        self.assertEqual(
+            cm.exception.error_msg, "无法解析错误类型。原1000,错误消息为在非回测账户上试图执行不允许的操作"
+        )
 
         await post("stop_backtest", self.token, data={})
         info = await get("info", self.token)
@@ -499,7 +503,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         principal = 1e6
         commission = 1e-4
 
-        with self.assertRaises(BacktestError) as cm:
+        with self.assertRaises(BadParamsError) as cm:
             await post(
                 "start_backtest",
                 self.token,
@@ -512,9 +516,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
-        self.assertEqual(cm.exception.message, "parameter 'commission' is required")
+        self.assertTrue(isinstance(cm.exception, BadParamsError))
 
-        with self.assertRaises(BacktestError) as cm:
+        with self.assertRaises(TradeError) as cm:
             response = await post(
                 "start_backtest",
                 self.token,
@@ -528,8 +532,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
+            self.assertTrue(isinstance(cm, TradeError))
             self.assertEqual(
-                cm.exception.args[0],
+                cm.exception.error_msg,
                 "parameter error: name, token, start, end, principal, commission",
             )
 
@@ -576,7 +581,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_error_reporting(self):
-        with self.assertRaises(BacktestError) as cm:
+        with self.assertRaises(PriceNotMeet) as cm:
             await post(
                 "buy",
                 self.token,
@@ -589,13 +594,13 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                     "request_id": "123456789",
                 },
             )
-        self.assertTrue("_remove_for_buy" in cm.exception.message)
+        self.assertTrue(isinstance(cm.exception, PriceNotMeet))
 
         with mock.patch(
             "backtest.feed.zillionarefeed.ZillionareFeed.get_price_for_match",
             side_effect=Exception,
         ):
-            with self.assertRaises(BacktestError) as cm:
+            with self.assertRaises(TradeError) as cm:
                 await post(
                     "buy",
                     self.token,
@@ -608,4 +613,4 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                         "request_id": "123456789",
                     },
                 )
-            self.assertTrue("get_price_for_match" in cm.exception.message)
+            self.assertTrue(isinstance(cm.exception, TradeError))

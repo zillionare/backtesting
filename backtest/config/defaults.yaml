@@ -4,23 +4,36 @@ logging:
   disable_existing_loggers: false
   formatters:
     default:
-      format: '%(asctime)s %(levelname)-1.1s %(process)d %(name)s:%(funcName)s:%(lineno)s | %(message)s'
+      format: '%(asctime)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s
+        | %(message)s'
+    backtest:
+      format: '%(bt_date)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s
+        | %(message)s'
     bare:
       format: '%(message)s'
   handlers:
     console:
       class: logging.StreamHandler
       formatter: default
-    file:
+    default:
       class: logging.handlers.RotatingFileHandler
       formatter: default
-      filename: /var/log/backtest/backtest.log
+      filename: /var/log/backtest/sys.log
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
+    backtest:
+      class: logging.handlers.RotatingFileHandler
+      formatter: backtest
+      filename: /var/log/backtest/backtest.log
+  loggers:
+    backtest:
+      level: INFO
+      handlers: [backtest]
+      propagate: false
   root:
     handlers:
-      - file
+      - console
     level: INFO
 metrics:
   risk_free_rate: 0.03

@@ -1,18 +1,18 @@
 import datetime
-import logging
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 from coretypes import FrameType
+from coretypes.errors.trade import NoData
+from numpy.typing import NDArray
 from omicron.extensions import array_math_round, fill_nan, math_round
 from omicron.models.stock import Stock
 
-from backtest.common.errors import EntrustError
 from backtest.feed import match_data_dtype
 from backtest.feed.basefeed import BaseFeed
 
-logger = logging.getLogger(__name__)
-
+from omicron.core.backtestlog import BacktestLogger
+logger = BacktestLogger.getLogger(__name__)
 
 class ZillionareFeed(BaseFeed):
     def __init__(self, *args, **kwargs):
@@ -33,7 +33,9 @@ class ZillionareFeed(BaseFeed):
             match_data_dtype
         )
 
-    async def get_close_price(self, sec: str, date: datetime.date, fq=False) -> float:
+    async def get_close_price(
+        self, sec: str, date: datetime.date, fq=False
+    ) -> Optional[float]:
         try:
             bars = await Stock.get_bars(sec, 1, FrameType.DAY, date, fq=fq)
             if len(bars):
@@ -49,7 +51,7 @@ class ZillionareFeed(BaseFeed):
 
     async def batch_get_close_price_in_range(
         self, secs: List[str], frames: List[datetime.date], fq=False
-    ) -> Dict[str, np.array]:
+    ) -> Dict[str, NDArray]:
         if len(secs) == 0:
             raise ValueError("No securities provided")
 
@@ -63,7 +65,7 @@ class ZillionareFeed(BaseFeed):
             async for sec, values in Stock.batch_get_day_level_bars_in_range(
                 secs, FrameType.DAY, start, end, fq=fq
             ):
-                closes = values[["frame", "close"]].astype(close_dtype)
+                closes = values[["frame", "close"]].astype(close_dtype)  # type: ignore
                 if len(closes) == 0:
                     # 遇到停牌的情况
                     price = await self.get_close_price(sec, frames[-1], fq=fq)
@@ -103,7 +105,7 @@ class ZillionareFeed(BaseFeed):
             return prices[0]
         else:
             logger.warning("get_trade_price_limits failed for %s:%s", sec, date)
-            raise EntrustError(EntrustError.NODATA, security=sec, time=date)
+            raise NoData(sec, date)
 
     async def get_dr_factor(
         self, secs: Union[str, List[str]], frames: List[datetime.date]

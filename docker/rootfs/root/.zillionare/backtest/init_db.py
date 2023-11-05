@@ -1,6 +1,5 @@
 """Unit test package for backtest."""
 import asyncio
-import logging
 import os
 import pickle
 
@@ -8,13 +7,14 @@ import cfg4py
 import omicron
 import pandas as pd
 from coretypes import FrameType
+from omicron.core.backtestlog import BacktestLogger
 from omicron.dal.influx.influxclient import InfluxClient
 from omicron.models.stock import Stock
 from omicron.models.timeframe import TimeFrame
 
 from backtest.config import get_config_dir
 
-logger = logging.getLogger()
+logger = BacktestLogger.getLogger(__name__)
 
 logger.info("server role is %s", os.getenv(cfg4py.envar))
 os.environ[cfg4py.envar] = "TEST"

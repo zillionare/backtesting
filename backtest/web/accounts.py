@@ -3,17 +3,18 @@
 提供了创建账户、查询账户、删除账户和状态持久化实现。
 """
 import datetime
-import logging
 import os
 import pickle
+from typing import Optional
 
 import cfg4py
+from coretypes.errors.trade import AccountConflictError
+from omicron.core.backtestlog import BacktestLogger
 
-from backtest.common.errors import AccountError
 from backtest.config import home_dir
 from backtest.trade.broker import Broker
 
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 cfg = cfg4py.get_instance()
 
 
@@ -54,8 +55,8 @@ class Accounts:
         token: str,
         principal: float,
         commission: float,
-        start: datetime.date = None,
-        end: datetime.date = None,
+        start: Optional[datetime.date] = None,
+        end: Optional[datetime.date] = None,
     ):
         """创建新账户
 
@@ -71,12 +72,12 @@ class Accounts:
         """
         if token in self._brokers:
             msg = f"账户{name}:{token}已经存在，不能重复创建。"
-            raise AccountError(msg)
+            raise AccountConflictError(msg, with_stack=True)
 
         for broker in self._brokers.values():
             if broker.account_name == name:
                 msg = f"账户{name}:{token}已经存在，不能重复创建。"
-                raise AccountError(msg)
+                raise AccountConflictError(msg, with_stack=True)
 
         broker = Broker(name, principal, commission, start, end)
         self._brokers[token] = broker

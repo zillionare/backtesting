@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-backtest"
-version = "0.4.19"
+version = "0.4.20"
 homepage = "https://github.com/zillionare/backtest"
 description = "zillionare backtest framework."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
@@ -53,7 +53,7 @@ sanic = "^21.12.1"
 cfg4py = "^0.9.4"
 expiringdict = "^1.2.1"
 aioredis = "^2.0"
-zillionare-core-types = "^0.5.2"
+zillionare-core-types = "^0.6.2"
 psutil = "^5.9.0"
 tqdm = "^4.63.0"
 pandas = "^1.4.1"
@@ -61,7 +61,7 @@ sanic-testing = {version = "^0.8.2", optional = true}
 Jinja2 = {version = "~3.0", optional = true}
 tabulate = "^0.8.9"
 async-timeout = "^4.0"
-zillionare-omicron = {version = "^2.0.0a57", allow-prereleases = true}
+zillionare-omicron = {version = "^2.0.0a76", allow-prereleases = true}
 pyemit = "^0.5.0"
 websockets = "<11.0"
 

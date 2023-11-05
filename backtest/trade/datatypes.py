@@ -114,6 +114,7 @@ assets_dtype = np.dtype([("date", "O"), ("assets", "<f8")])
             ("assets", "<f8")
         ]
     )
+    ```
 """
 
 float_ts_dtype = np.dtype([("date", "O"), ("value", "<f8")])

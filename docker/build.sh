@@ -1,5 +1,6 @@
 version=`poetry version | awk '{print $2}'`
 wheel="/root/zillionare/zillionare_backtest-$version-py3-none-any.whl"
+omicron="/root/zillionare/zillionare_omicron-2.0.0a76-py3-none-any.whl"
 echo "packaging backtest version = $version"
 echo "the wheel file is $wheel"
 poetry build

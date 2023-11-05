@@ -1,6 +1,5 @@
 """Console script for backtest."""
 
-import logging
 import os
 import re
 import signal
@@ -12,11 +11,12 @@ import cfg4py
 import fire
 import httpx
 import psutil
+from omicron.core.backtestlog import BacktestLogger
 from tqdm import tqdm
 
 from backtest.config import endpoint, get_config_dir
 
-logger = logging.getLogger(__name__)
+logger = BacktestLogger.getLogger(__name__)
 
 cfg = cfg4py.init(get_config_dir())
 
