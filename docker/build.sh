@@ -1,16 +1,16 @@
 version=`poetry version | awk '{print $2}'`
-wheel="/root/zillionare/zillionare_backtest-$version-py3-none-any.whl"
-omicron="/root/zillionare/zillionare_omicron-2.0.0a76-py3-none-any.whl"
+backtest_whl="/root/zillionare/zillionare_backtest-$version-py3-none-any.whl"
+omicron_whl="/root/zillionare/zillionare_omicron-2.0.0a77-py3-none-any.whl"
 echo "packaging backtest version = $version"
-echo "the wheel file is $wheel"
+echo "the backtest wheel file is $backtest_whl"
 poetry build
 cp ../tests/data/* rootfs/root/.zillionare/backtest/data/
 cp ../dist/*$version*.whl rootfs/root/zillionare/
 sudo docker rmi backtest
-sudo docker build --build-arg version=$version --build-arg wheel=$wheel . -t backtest
+sudo docker build --build-arg version=$version --build-arg backtest=$backtest_whl --build-arg omicron=$omicron_whl . -t backtest
 
 # test the image
-sudo docker run -d --name bt -v ~/zillionare/backtest/config:/config -p 7080:7080 backtest
+sudo docker run -d --name bt -v ~/zillionare/backtest/config:/config -p 7080:7080 -e MODE=TEST backtest
 sleep 20
 response=`curl -sSf http://localhost:7080/`
 

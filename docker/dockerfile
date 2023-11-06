@@ -7,7 +7,8 @@ VOLUME /var/log/backtest
 
 ARG version
 ARG pypi=https://pypi.tuna.tsinghua.edu.cn/simple
-ARG wheel
+ARG backtest
+ARG omicron
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PORT=7080
 
@@ -21,8 +22,9 @@ RUN sed -i s/archive.ubuntu.com/mirrors.aliyun.com/g /etc/apt/sources.list \
     && make install \
     && pip3 install cython \
     && pip3 install numpy>=1.23.2 \
-    && pip3 install ${wheel} --default-timeout=300 \
+    && pip3 install ${backtest} --default-timeout=300 \
     && pip3 install ${omicron} --default-timeout=300 \
+    && pip3 install zillionare-core-types>=0.6.2 --default-timeout=300 \
     && rm -rf /var/lib/apt/lists/*
 
 EXPOSE $PORT

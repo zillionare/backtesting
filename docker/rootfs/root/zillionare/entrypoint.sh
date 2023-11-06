@@ -29,5 +29,4 @@ fi
 pip3 install --pre zillionare-backtest --default-timeout=300 -i https://pypi.tuna.tsinghua.edu.cn/simple
 echo "port passed through envar: $PORT" > /var/log/backtest/backtest.log
 
-cp /config/defaults.yaml ~/zillionare/backtest/config/defaults.yaml
 python3 -m backtest.app start $PORT
