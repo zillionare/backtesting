@@ -657,12 +657,10 @@ class Broker:
         # 必须以手为单位买入，否则委托会失败
         shares_to_buy = shares_to_buy // 100 * 100
         if shares_to_buy < 100:
-            logger.info(
-                "委买失败：%s(%s), 资金(%s)不足", security, self.cash, en.eid, date=bid_time
-            )
+            logger.info("委买失败：%s, 资金(%s)不足购买1手。", security, self.cash, date=bid_time)
             raise CashError(
                 self.account_name,
-                100 * shares_to_buy * bid_price,
+                max(100, shares_to_buy) * bid_price,
                 self.cash,
                 with_stack=True,
             )
