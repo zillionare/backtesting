@@ -20,7 +20,7 @@ class CliTest(unittest.TestCase):
 
         cli.start(port)
 
-        state_file = os.path.join(home_dir(), "state.pkl")
+        state_file = os.path.join(home_dir(), "backtest.index.json")
         if os.path.exists(state_file):
             os.remove(state_file)
 

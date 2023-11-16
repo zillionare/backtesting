@@ -2,17 +2,19 @@ import datetime
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import pandas as pd
 from coretypes import FrameType
 from coretypes.errors.trade import NoData
-from numpy.typing import NDArray
-from omicron.extensions import array_math_round, fill_nan, math_round
+from omicron import tf
+from omicron.core.backtestlog import BacktestLogger
+from omicron.extensions import array_math_round, math_round
 from omicron.models.stock import Stock
 
 from backtest.feed import match_data_dtype
 from backtest.feed.basefeed import BaseFeed
 
-from omicron.core.backtestlog import BacktestLogger
 logger = BacktestLogger.getLogger(__name__)
+
 
 class ZillionareFeed(BaseFeed):
     def __init__(self, *args, **kwargs):
@@ -50,50 +52,34 @@ class ZillionareFeed(BaseFeed):
         return None
 
     async def batch_get_close_price_in_range(
-        self, secs: List[str], frames: List[datetime.date], fq=False
-    ) -> Dict[str, NDArray]:
+        self, secs: List[str], start: datetime.date, end: datetime.date, fq=False
+    ) -> pd.DataFrame:
         if len(secs) == 0:
             raise ValueError("No securities provided")
 
-        start = frames[0]
-        end = frames[-1]
-
-        close_dtype = [("frame", "O"), ("close", "<f4")]
-        result = {}
-
+        frames = [tf.int2date(f) for f in tf.get_frames(start, end, FrameType.DAY)]
+        sec_dfs = [pd.DataFrame([], index=frames)]
         try:
             async for sec, values in Stock.batch_get_day_level_bars_in_range(
                 secs, FrameType.DAY, start, end, fq=fq
             ):
-                closes = values[["frame", "close"]].astype(close_dtype)  # type: ignore
-                if len(closes) == 0:
-                    # 遇到停牌的情况
-                    price = await self.get_close_price(sec, frames[-1], fq=fq)
-                    if price is None:
-                        result[sec] = None
-                    else:
-                        result[sec] = np.array(
-                            [(f, price) for f in frames], dtype=close_dtype
-                        )
-                    continue
+                if len(values) > 0: # 停牌的情况
+                    close = array_math_round(values["close"], 2) # type: ignore
+                else:
+                    close = []
+                df = pd.DataFrame(data=close,
+                                   columns=[sec], 
+                                   index=[v.item().date() for v in values["frame"]])# type: ignore
+                
+                if len(df) == 0 or df.index[0] > start: # type: ignore
+                    close = await self.get_close_price(sec, start)
+                    df.loc[start, sec] = close
+                sec_dfs.append(df)
 
-                closes["close"] = array_math_round(closes["close"], 2)
-                closes["frame"] = [item.date() for item in closes["frame"]]
-
-                # find missed frames, using left fill
-                missed = np.setdiff1d(frames, closes["frame"])
-                if len(missed):
-                    missed = np.array(
-                        [(f, np.nan) for f in missed],
-                        dtype=close_dtype,
-                    )
-                    closes = np.concatenate([closes, missed])
-                    closes = np.sort(closes, order="frame")
-                    closes["close"] = fill_nan(closes["close"])
-
-                result[sec] = closes
-
-            return result
+            df = pd.concat(sec_dfs, axis=1)
+            df.sort_index(inplace=True)
+            df.fillna(method='ffill', inplace=True)
+            return df
         except Exception:
             logger.warning("get_close_price failed for %s:%s - %s", secs, start, end)
             raise
@@ -108,36 +94,29 @@ class ZillionareFeed(BaseFeed):
             raise NoData(sec, date)
 
     async def get_dr_factor(
-        self, secs: Union[str, List[str]], frames: List[datetime.date]
-    ) -> Dict[str, np.ndarray]:
+        self, secs: Union[str, List[str]], frames: List[datetime.date], normalized:bool=True
+    ) -> pd.DataFrame:
+        if isinstance(secs, str):
+            secs = [secs]
         try:
-            result = {}
+            dfs = [pd.DataFrame([], index=frames)]
             async for sec, bars in Stock.batch_get_day_level_bars_in_range(
                 secs, FrameType.DAY, frames[0], frames[-1], fq=False
             ):
-                factors = bars[["frame", "factor"]].astype(
-                    [("frame", "O"), ("factor", "<f4")]
-                )
+                df = pd.DataFrame(data = bars["factor"], #type: ignore
+                                  columns = [sec], 
+                                  index=[v.item().date() for v in bars["frame"]]) #type: ignore
+                if normalized:# fixme: 长时间停牌+复权会导致此处出错，因为iloc[0]可能停牌
+                    df[sec] = df[sec] / df.iloc[0][sec]
+                dfs.append(df)
 
-                # find missed frames, using left fill
-                missed = np.setdiff1d(
-                    frames, [item.item().date() for item in bars["frame"]]
-                )
-                if len(missed):
-                    missed = np.array(
-                        [(f, np.nan) for f in missed],
-                        dtype=[("frame", "datetime64[s]"), ("factor", "<f4")],
-                    )
-                    factors = np.concatenate([factors, missed])
-                    factors = np.sort(factors, order="frame")
+            df = pd.concat([pd.DataFrame([], index=frames), *dfs], axis=1)
+            df.sort_index(inplace=True)
+            # issue 13: 停牌时factor假设为1
+            df.iloc[0].fillna(1., inplace=True)
+            df.ffill(inplace=True)
 
-                if all(np.isnan(factors["factor"])):
-                    factors["factor"] = [1.0] * len(factors)
-                else:
-                    factors["factor"] = fill_nan(factors["factor"])
-
-                result[sec] = factors["factor"] / factors["factor"][0]
-            return result
+            return df
         except Exception as e:
             logger.exception(e)
             logger.warning(

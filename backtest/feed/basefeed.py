@@ -1,9 +1,9 @@
 import datetime
 from abc import ABCMeta, abstractmethod
-from calendar import c
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
+import pandas as pd
 
 
 class BaseFeed(metaclass=ABCMeta):
@@ -61,17 +61,28 @@ class BaseFeed(metaclass=ABCMeta):
 
     @abstractmethod
     async def batch_get_close_price_in_range(
-        self, secs: List[str], frames: List[datetime.date], fq=False
-    ) -> Dict[str, np.array]:
-        """获取多个证券在多个日期的收盘价
+        self, secs: List[str], start: datetime.date, end: datetime.date, fq=False
+    ) -> pd.DataFrame:
+        """获取多个证券在[start, end]期间的收盘价。
+
+        如果股票在[start,end]期间停牌，返回值将使用`ffill`填充。如果在`start`当天停牌，则将调用`get_close_price`取`start`前一期的收盘价。
+
+        返回值示例:
+
+        |          日期       | 000001.XSHE | 600000.XSHG |
+        |--------------------|-------------|-------------|
+        |         2022-03-01 |        9.51 |        4.56 |
+        |         2022-03-02 |          10 |  5          |
+
 
         Args:
             secs: 证券代码列表
-            frames: 日期列表, 日期必须是有序且连续
+            start: 起始日期
+            end: 截止日期
             fq: 是否复权。
 
         Returns:
-            a dict which key is `sec` and value is a numpy array which dtype is `[("frame", "O"), ("close", "f4")]`
+            a dataframe which frames is index (sorted) and each sec as columns
         """
         raise NotImplementedError
 
@@ -92,17 +103,17 @@ class BaseFeed(metaclass=ABCMeta):
 
     @abstractmethod
     async def get_dr_factor(
-        self, secs: Union[str, List[str]], frames: List[datetime.date]
-    ) -> Dict[str, np.array]:
+        self, secs: Union[str, List[str]], frames: List[datetime.date], normalized:bool=True
+    ) -> pd.DataFrame:
         """股票在[start,end]间的每天的复权因子，使用start日进行归一化处理
 
         注意实现者必须保证，复权因子的长度与日期的长度相同且完全对齐。如果遇到停牌的情况，应该进行相应的填充。
 
         Args:
-            secs: 股票代码
-            frames: 日期列表
-
+            secs: 证券列表。如果传入str，则将会转换为列表
+            frames: 待取日期。注意很多时候，可能需要传入起始日期之前的那个日期，以便对复权因子进行归一化，而不丢失信息。
+            normalized: 传回的复权因子是否归一化到frames[0]
         Returns:
-            返回一个dict
+            返回复权因子DataFrame，其中secs为列，frames为index，每一个cell为该股该天的复权因子
         """
         raise NotImplementedError

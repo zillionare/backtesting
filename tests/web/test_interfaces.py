@@ -8,7 +8,8 @@ import arrow
 import cfg4py
 import numpy as np
 import omicron
-from coretypes.errors.trade import AccountStoppedError, BadParamsError, PriceNotMeet
+import pandas as pd
+from coretypes.errors.trade import BadParamsError, PriceNotMeet
 from coretypes.errors.trade.base import TradeError
 from omicron import tf
 from pyemit import emit
@@ -24,13 +25,14 @@ from tests import (
 
 app = init_interface_test()
 
+hljh = "002537.XSHE"
 
 class InterfacesTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.name = "test"
         principal = 1_000_000
         commission = 1e-4
         self.token = uuid.uuid4().hex
+        self.name = "test" + self.token[:4]
 
         cfg = cfg4py.get_instance()
         self.admin_token = cfg.auth.admin
@@ -38,6 +40,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         try:
             os.remove("/var/log/backtest/entrust.log")
             os.remove("/var/log/backtest/trade.log")
+            os.remove("/tmp/backtest/backtest.index.json")
         except FileNotFoundError:
             pass
 
@@ -63,7 +66,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        self.assertEqual(response["account_name"], "test")
+        self.assertEqual(response["account_name"], self.name)
         self.assertEqual(response["principal"], principal)
         self.assertEqual(response["token"], self.token)
 
@@ -93,7 +96,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         response = await get("accounts", self.admin_token)
         self.assertEqual(2, len(response))
-        self.assertEqual(response[0]["account_name"], "test")
+        self.assertEqual(response[1]["account_name"], "test2")
 
         # should raise no Error
         await delete("accounts", self.admin_token, params={"name": "test2"})
@@ -271,27 +274,8 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
     @mock.patch("arrow.now", return_value=arrow.get("2022-03-14 15:00:00"))
     async def test_metrics(self, mocked_now):
-        # this also test get_assets
         hljh = "002537.XSHE"
 
-        actual = await get("assets", self.token)
-        np.testing.assert_array_equal(
-            actual["date"],
-            [
-                datetime.date(2022, 3, 1),
-                datetime.date(2022, 3, 2),
-                datetime.date(2022, 3, 3),
-                datetime.date(2022, 3, 4),
-                datetime.date(2022, 3, 7),
-                datetime.date(2022, 3, 8),
-                datetime.date(2022, 3, 9),
-                datetime.date(2022, 3, 10),
-                datetime.date(2022, 3, 11),
-                datetime.date(2022, 3, 14),
-            ],
-        )
-
-        np.testing.assert_almost_equal(actual["cash"], [1000000] * 10, decimal=2)
         for price, volume, tm in [
             (9.13, 500, "2022-03-01 09:31:00"),
             (10.03, 500, "2022-03-02 09:31:00"),
@@ -332,6 +316,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+        await post("stop_backtest", self.token, data={})
         actual = await get("metrics", self.token, baseline=hljh)
         exp = {
             "start": datetime.date(2022, 3, 1),
@@ -362,19 +347,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         }
         assert_deep_almost_equal(self, exp, actual, places=2)
 
-        assets = await get("assets", self.token)
-        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
-        self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 14))
-
-        assets = await get(
-            "assets",
-            self.token,
-            start=datetime.date(2022, 3, 1),
-            end=datetime.date(2022, 3, 8),
-        )
-        self.assertEqual(assets["date"][0], datetime.date(2022, 3, 1))
-        self.assertEqual(assets["date"][-1], datetime.date(2022, 3, 8))
-
     async def test_protect_admin(self):
         """valid admin token is tested through other tests"""
         response = await get("accounts", "invalid_token")
@@ -384,55 +356,55 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await delete("accounts", self.admin_token)
 
         _ = await post(
-            "start_backtest",
-            self.admin_token,
-            data={
-                "name": "test_bill",
-                "principal": 1_000_000,
-                "commission": 1e-4,
-                "token": self.token,
-                "start": "2022-03-01",
-                "end": "2022-03-14",
-            },
-        )
-
-        _ = await post(
             "buy",
             self.token,
             {
                 "security": "002537.XSHE",
-                "price": 10,
+                "price": 9.13,
                 "volume": 500,
                 "timeout": 0.5,
-                "order_time": "2022-03-01 10:04:00",
+                "order_time": "2022-03-01 09:31:00",
                 "request_id": "123456789",
             },
         )
-        r = (await get("bills", self.token)) or {}
-        self.assertIn("tx", r)
-        self.assertIn("trades", r)
-        self.assertIn("positions", r)
-        self.assertIn("assets", r)
-        # issue 7
-        self.assertListEqual(
-            [["2022-03-01", "002537.XSHE", 500.0, 0.0, 9.42]], r["positions"]
-        )
 
-        # issue 22
         _ = await post(
             "sell",
             self.token,
             {
                 "security": "002537.XSHE",
-                "price": 0.1,
-                "volume": 500,
+                "price": 9.1,
+                "volume": 100,
                 "timeout": 0.5,
-                "order_time": "2022-03-02 10:04:00",
+                "order_time": "2022-03-14 15:00:00",
             },
         )
 
-        r = (await get("bills", self.token)) or {}
-        self.assertAlmostEqual(r["tx"][0]["pprofit"], 0.1091, places=3)
+        _ = await post("stop_backtest", self.token, data={})
+        bills = (await get("bills", self.token)) or {}
+        tx = bills["tx"][0]
+        self.assertEqual(tx["shares"], 100)
+        self.assertAlmostEqual(tx["fee"], 0.19, 2)
+        self.assertEqual(tx["sec"], hljh)
+        self.assertEqual(tx["window"], 10)
+        self.assertAlmostEqual(tx["entry_price"], 9.09, 2)
+        self.assertAlmostEqual(tx["exit_price"], 9.56, 2)
+        self.assertEqual(tx["exit_time"], "2022-03-14T15:00:00")
+
+        trades = bills["trades"]
+        for _, v in trades.items():
+            if v["order_side"] == "买入":
+                self.assertAlmostEqual(v["trade_fees"], 0.45, 2)
+                self.assertAlmostEqual(v["price"], 9.09, 2)
+                self.assertEqual(v["filled"], 500)
+            if v["order_side"] == "卖出":
+                self.assertAlmostEqual(v["trade_fees"], 0.1, 2)
+                self.assertAlmostEqual(v["price"], 9.56, 2)
+                self.assertAlmostEqual(v["filled"], 100)
+
+        positions = bills["positions"]
+        df = pd.DataFrame(positions, columns=["frame", "security", "shares", "sellable", "price"])
+        np.testing.assert_array_equal(df["shares"], [0, *([500] * 9), 400])
 
     async def test_sell_percent(self):
         response = await post(
@@ -467,7 +439,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         await delete("accounts", self.token, params={"name": self.name})
 
     async def test_frozen_accounts(self):
-        with self.assertRaises(AccountStoppedError) as cm:
+        with self.assertRaises(BadParamsError) as cm:
             await post(
                 "buy",
                 self.token,
@@ -480,7 +452,6 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                     "request_id": "123456789",
                 },
             )
-        self.assertTrue(isinstance(cm.exception, AccountStoppedError))
 
     async def test_stop_backtest(self):
         info = await get("info", self.token)
@@ -491,7 +462,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(isinstance(cm.exception, TradeError))
         self.assertEqual(
-            cm.exception.error_msg, "无法解析错误类型。原1000,错误消息为在非回测账户上试图执行不允许的操作"
+            cm.exception.error_msg, "无法解析错误类型。原1000,错误消息为admin账号没有此功能"
         )
 
         await post("stop_backtest", self.token, data={})

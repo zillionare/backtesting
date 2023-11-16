@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from enum import IntEnum
-from typing import Final
+from typing import Final, Union
 
 import numpy as np
 
@@ -34,7 +34,7 @@ class Entrust:
         self,
         security: str,
         side: EntrustSide,
-        shares: int,
+        shares: Union[float, int],
         price: float,
         bid_time: datetime.datetime,
         bid_type: BidType = BidType.MARKET,

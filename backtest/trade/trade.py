@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from typing import Union
 
 from omicron.core.backtestlog import BacktestLogger
 
@@ -17,7 +18,7 @@ class Trade:
         eid: str,
         security: str,
         price: float,
-        shares: int,
+        shares: Union[float,int],
         fee: float,
         side: EntrustSide,
         time: datetime.datetime,
@@ -44,9 +45,10 @@ class Trade:
         self.side = side
 
         # only for buying trade
-        self._unsell = shares
-        self._unamortized_fee = fee
-        self.closed = False
+        if side in (EntrustSide.BUY, EntrustSide.XDXR):
+            self._unsell = shares
+            self._unamortized_fee = fee
+            self.closed = False
 
         if side == EntrustSide.XDXR:
             logger.info("XDXR entrust: %s", self, date=time)
@@ -109,7 +111,7 @@ class Trade:
             self._unsell -= sellable
             self._unamortized_fee -= amortized_buy_fee
 
-            if self._unsell == 0:
+            if self._unsell <= 1e-5:
                 logger.debug(
                     "交易%s (%s)已close.", self.security, self.tid, date=close_time
                 )

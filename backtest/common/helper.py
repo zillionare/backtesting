@@ -77,15 +77,14 @@ def protected(wrapped):
                     result = await f(request, *args, **kwargs)
                     logger.info("finished request: %s, params %s", command, params)
                     return result
-                except TradeError as e1:
-                    logger.exception(e1)
-                    logger.warning("request: %s failed: %s", command, params)
-                    return response.json(e1.as_json(), status=499)
                 except Exception as e:
                     logger.exception(e)
                     logger.warning("%s error: %s", f.__name__, params)
-                    e2 = TradeError(str(e))
-                    return response.json(e2.as_json(), status=499)
+                    if isinstance(e, TradeError):
+                        return response.json(e.as_json(), status=499)
+                    else:
+                        e2 = TradeError(str(e))
+                        return response.json(e2.as_json(), status=499)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
                 return response.json({"msg": "token is invalid"}, 401)

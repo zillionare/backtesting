@@ -102,12 +102,12 @@ async def stop_backtest(request):
 
     """
     broker = request.ctx.broker
-    if broker.mode != "bt":
-        raise TradeError("在非回测账户上试图执行不允许的操作", with_stack=True)
 
+    if broker.account_name == "admin":
+        raise TradeError("admin账号没有此功能")
+    
     if not broker._bt_stopped:
-        broker._bt_stopped = True
-        await broker.recalc_assets()
+        await broker.stop_backtest()
 
     return response.text("ok")
 
@@ -115,10 +115,8 @@ async def stop_backtest(request):
 @bp.route("accounts", methods=["GET"])
 @protected_admin
 async def list_accounts(request):
-    mode = request.args.get("mode", "all")
-
     accounts = request.app.ctx.accounts
-    result = accounts.list_accounts(mode)
+    result = accounts.list_accounts()
 
     return response.json(jsonify(result))
 
@@ -380,14 +378,10 @@ async def bills(request):
 
     broker: Broker = request.ctx.broker
 
-    results["tx"] = broker.transactions
-    results["trades"] = broker.trades
-    results["positions"] = broker._positions
+    if not broker._bt_stopped:
+        raise TradeError("call `stop_backtest` first")
 
-    if not (broker.mode == "bt" and broker._bt_stopped):
-        await broker.recalc_assets()
-
-    results["assets"] = broker._assets
+    results = broker.bills()
     return response.json(jsonify(results))
 
 
@@ -440,40 +434,44 @@ async def get_assets(request):
     if start:
         start = arrow.get(start).date()
     else:
-        start = broker.account_start_date
+        start = broker.bt_start
 
     end = request.args.get("end")
     if end:
         end = arrow.get(end).date()
     else:
-        end = broker.account_end_date
+        end = broker._assets[-1]["date"]
 
-    if not (broker.mode == "bt" and broker._bt_stopped):
-        await broker.recalc_assets(end)
+    filter = np.argwhere((broker._assets["date"] >= start) & (broker._assets["date"] <= end)).flatten()
+    return response.raw(pickle.dumps(broker._assets[filter]))
 
-    if broker._assets.size == 0:
-        return response.raw(pickle.dump(np.empty(0, dtype=rich_assets_dtype)))
 
-    # cash may be shorter than assets
-    if broker._cash.size == 0:
-        cash = broker._assets.astype(cash_dtype)
-    elif broker._cash.size < broker._assets.size:
-        n = broker._assets.size - broker._cash.size
-        cash = np.pad(broker._cash, (0, n), "edge")
-        cash["date"] = broker._assets["date"]
-    else:
-        cash = broker._cash
+@bp.route("save_backtest", methods=["POST"])
+@protected
+async def save_backtest(request):
+    params = request.json or {}
+    if not "name_prefix" in params:
+        raise BadParamsError("name_prefix must be specified")
+    
+    name_prefix = params["name_prefix"]
+    strategy_params = params.get("strategy_params")
+    baseline = params.get("baseline")
 
-    cash = cash[(cash["date"] <= end) & (cash["date"] >= start)]
+    token = request.token
+    accounts = request.ctx.accounts
 
-    assets = broker._assets
-    assets = assets[(assets["date"] <= end) & (assets["date"] >= start)]
+    name = accounts.save_backtest(name_prefix, strategy_params, token, baseline)
+    return response.text(name)
 
-    mv = assets["assets"] - cash["cash"]
+    
+@bp.route("load_backtest", methods=["GET"])
+@protected
+async def load_backtest(request):
+    name = request.args.get("mode", None)
+    if name is None:
+        raise BadParamsError("name of the backtest is required")
+    
+    token = request.ctx.token
+    accounts = request.ctx.accounts
 
-    # both _cash and _assets has been moved backward one day
-    result = numpy_append_fields(
-        assets, ["cash", "mv"], [cash["cash"], mv], [("cash", "f8"), ("mv", "f8")]
-    ).astype(rich_assets_dtype)
-
-    return response.raw(pickle.dumps(result))
+    return response.raw(accounts.load_backtest(name, token))
