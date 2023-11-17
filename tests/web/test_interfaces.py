@@ -167,7 +167,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
 
         tx = response[0]
         self.assertEqual(tx["security"], "002537.XSHE")
-        self.assertEqual(tx["filled"], 250)
+        self.assertEqual(tx["filled"], 200)
         self.assertAlmostEqual(tx["price"], 10.45, 2)
 
     async def test_market_sell(self):
@@ -432,7 +432,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         # should be 250, rounded to 300
-        self.assertEqual(250, response[0]["filled"])
+        self.assertEqual(200, response[0]["filled"])
 
     async def test_delete_accounts(self):
         # the account is created by asyncSetup

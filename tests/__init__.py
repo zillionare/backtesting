@@ -155,7 +155,7 @@ def lines2bars(lines, is_date):
 
     data = []
     for line in lines:
-        fields = line.split(",")
+        fields = line.split("\t")
         data.append(
             (
                 convert(fields[0]),
@@ -177,7 +177,7 @@ def bars_from_csv(
 ):
     ft = FrameType(ft)
 
-    fname = f"{code}.{ft.value}.csv"
+    fname = f"{code}_{ft.value}.csv"
 
     if ft in TimeFrame.minute_level_frames:
         is_date = False

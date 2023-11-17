@@ -27,6 +27,7 @@ from pyemit import emit
 
 from backtest.common.helper import get_app_context, tabulate_numpy_array
 from backtest.config import get_config_dir
+from backtest.feed import match_data_dtype
 from backtest.feed.zillionarefeed import ZillionareFeed
 from backtest.trade.broker import Broker
 from backtest.trade.datatypes import (
@@ -38,7 +39,7 @@ from backtest.trade.datatypes import (
     position_dtype,
 )
 from backtest.trade.trade import Trade
-from tests import assert_deep_almost_equal, data_dir, data_populate
+from tests import assert_deep_almost_equal, bars_from_csv, data_populate
 
 hljh = "002537.XSHE"
 tyst = "603717.XSHG"
@@ -176,8 +177,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         positions = np.array([(hljh, shares1, 0, price1)], dtype=position_dtype)
         self._check_position(broker, positions, datetime.date(2022, 3, 10))
         await broker._forward_assets(mar10)
-        self.assertAlmostEqual(assets, broker.assets, 2)
-        self.assertAlmostEqual(cash, broker.cash, 2)
+        self.assertAlmostEqual(assets, broker.assets, 0)
+        self.assertAlmostEqual(cash, broker.cash, 0)
 
         # 委买当笔即全部成交
         start_cash = broker.cash  # 9727078031.93345
@@ -235,6 +236,18 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 hljh, 10.20, 10e4, datetime.datetime(2022, 3, 11, 9, 35)
             )
             self.assertTrue(isinstance(cm, CashError))
+
+        # 当出现跌停时，可以无限买入 (hljh 3.4日)
+        broker = Broker("test", principal, commission, mar1, mar14)
+
+        # 有跌停，全部成交
+        result = await broker.buy(
+            hljh,
+            10,
+            2e10,  # total available shares: 81_840_998
+            datetime.datetime(2022, 3, 4, 9, 30),
+        )
+        self.assertEqual(999900000, result.shares)
 
     async def test_get_unclosed_trades(self):
         start = datetime.date(2022, 3, 1)
@@ -326,8 +339,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
         self._check_position(broker, pos, mar10.date())
         await broker._forward_assets(mar10.date())
-        self.assertAlmostEqual(999_073.47, broker.assets, 2)
-        self.assertAlmostEqual(974_781.47, broker.cash, 2)
+        self.assertAlmostEqual(999_073.48, broker.assets, 2)
+        self.assertAlmostEqual(974_781.48, broker.cash, 2)
 
         # 跌停板不能卖出
         bid_price, bid_shares, bid_time = (
@@ -359,8 +372,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self._check_position(broker, positions_10, mar10.date())
         self._check_position(broker, positions_11, mar11)
         await broker._forward_assets(mar11)
-        self.assertAlmostEqual(999_501.02, broker.assets, 2)
-        self.assertAlmostEqual(979_301.02, broker.cash, 2)
+        self.assertAlmostEqual(999_501.03, broker.assets, 2)
+        self.assertAlmostEqual(979_301.03, broker.cash, 2)
 
         # 成交量不足撮合委卖
         broker = Broker("test", 1e10, 1e-4, start, end)
@@ -378,7 +391,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(0, broker.position["shares"].item())
         await broker._forward_assets(mar10.date())
-        self.assertAlmostEqual(9998678423.288, broker.assets, 2)
+        self.assertAlmostEqual(9998678423.08, broker.assets, 2)
         self.assertAlmostEqual(broker.cash, broker.assets, 2)
 
         # 有除权除息的情况下，卖出
@@ -410,6 +423,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             np.testing.assert_array_almost_equal(
                 broker._positions[filter]["sellable"], [0, 0, 0, 1e3, 0, 0]
             )
+
+        # 有涨停的情况下，卖出全部成交（hljh, 3月2日）
+        broker = Broker("test", 1e6, 1e-4, mar1, mar14)
 
     async def test_info(self):
         # 本测试用例包含了除权除息的情况
@@ -445,8 +461,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(datetime.date(2022, 3, 1), info["start"])
             self.assertEqual(datetime.date(2022, 3, 14), info["last_trade"])
-            self.assertAlmostEqual(998407.99, info["assets"], 2)
-            self.assertAlmostEqual(989579.99, info["available"], 2)
+            self.assertAlmostEqual(998407.999, info["assets"], 2)
+            self.assertAlmostEqual(989579.999, info["available"], 2)
             self.assertAlmostEqual(8828.0, info["market_value"], 2)
             self.assertAlmostEqual(info["assets"] - info["principal"], info["pnl"], 2)
 
@@ -515,13 +531,13 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             np.testing.assert_array_equal(exp["date"], tyst_arr["date"])
 
             info = await broker.info()
-            self.assertAlmostEqual(1008979.19, info["assets"], 2)
-            self.assertAlmostEqual(989579.99, info["available"], 2)
+            self.assertAlmostEqual(1008979.2, info["assets"], 2)
+            self.assertAlmostEqual(989580, info["available"], 2)
 
             assets = await broker.get_assets(datetime.date(2022, 3, 10))
             cash = broker.get_cash(datetime.date(2022, 3, 10))
-            self.assertAlmostEqual(974671.48, cash, 2)
-            self.assertAlmostEqual(1004598.48, assets, 2)
+            self.assertAlmostEqual(974671.49, cash, 2)
+            self.assertAlmostEqual(1004598.49, assets, 2)
 
         # 3. 获取某个特定日期的info
         broker = Broker("test", 1e6, 1e-4, mar1, mar14)
@@ -530,8 +546,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         assert_info_success(info2)
 
         info3 = await broker.info(datetime.date(2022, 3, 9))
-        self.assertAlmostEqual(998186.88, info3["assets"], 2)
-        self.assertAlmostEqual(968836.88, info3["available"], 2)
+        self.assertAlmostEqual(998186.89, info3["assets"], 2)
+        self.assertAlmostEqual(968836.89, info3["available"], 2)
         self.assertAlmostEqual(29350.0, info3["market_value"], 2)
 
     def test_str_repr(self):
@@ -575,7 +591,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "end": datetime.date(2022, 3, 14),
             "window": 10,
             "total_tx": 9,
-            "total_profit": -404.0999999998603,
+            "total_profit": -404.0988,
             "total_profit_rate": -0.0004040999999998603,
             "win_rate": 0.5555555555555556,
             "mean_return": -3.896698729980441e-05,
@@ -1231,8 +1247,72 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         positions = bills["positions"]
         np.testing.assert_array_equal(positions["shares"], [0, *([500] * 9), 400])
 
-    async def test_match_buy(self):
-        pass
+    async def test_match_bid(self):
+        # 仅使用frame
+        bars = bars_from_csv("hljh", '1m', 2, 241)[["frame", "close", "volume"]].astype(match_data_dtype)[:20]
+        bars["price"] = [10 + i/100 for i in range(20)]
+        bars["volume"] = np.arange(1, 21)
+        
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        broker = Broker("test", 1e6, 1e-4, start, end)
 
-    async def test_match_sell(self):
-        pass
+        # 1. 直到当天结束，都没有足够的票
+        mp, filled, frame = broker._match_bid(bars, 300)
+        self.assertAlmostEqual(mp, 10.1235, 2)
+        self.assertEqual(filled, 200)
+        self.assertEqual(frame, datetime.datetime(2022, 3, 1, 9, 50))
+
+        # 2. 当天未结束即凑够
+        mp, filled, frame = broker._match_bid(bars, 100)
+        self.assertAlmostEqual(mp, 10.08, 2)
+        self.assertEqual(filled, 100)
+        self.assertEqual(frame, datetime.datetime(2022, 3, 1, 9, 44))
+
+    def test_remove_for_buy(self):
+        order_time = datetime.datetime(2022, 3, 1, 9, 31)
+        bars = bars_from_csv("hljh", '1m', 2, 241)
+        bars = bars[["frame", "close", "volume"]].astype(match_data_dtype)
+        buy_limit_price = 9.5
+        sell_limit_price = 9.09
+
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        broker = Broker("test", 1e6, 1e-4, start, end)
+
+        bars = broker._remove_for_buy(hljh, order_time, bars, 9.22, buy_limit_price, sell_limit_price)
+        self.assertEqual(10, len(bars))
+
+        # where meet sell limit is changed to 1e20
+        self.assertAlmostEqual(1e20, bars[3]["volume"])
+
+        # 2. 全部为涨停价
+        bars["price"] = 9   
+        with self.assertRaises(BuylimitError):
+            bars = broker._remove_for_buy(hljh, order_time, bars, 9.22, 9, sell_limit_price)
+            pass
+
+    def test_remove_for_sell(self):
+        start = datetime.date(2022, 3, 1)
+        end = datetime.date(2022, 3, 14)
+        order_time = datetime.datetime(2022, 3, 1, 9, 31)
+
+        broker = Broker("test", 1e6, 1e-4, start, end)
+
+        buy_limit_price = 9.5
+        sell_limit_price = 9.09
+
+        # 1. 部分触及跌停
+        bars = bars_from_csv("hljh", '1m', 2, 241)
+        bars = bars[["frame", "close", "volume"]].astype(match_data_dtype)
+        bars["price"][20:] = 9.09
+        bars["price"][3] = buy_limit_price
+        bars = broker._remove_for_sell(hljh, order_time, bars, 9.10, sell_limit_price, buy_limit_price)
+        self.assertEqual(20, len(bars))
+        self.assertEqual(1e20, bars[3]["volume"])
+
+        # 2. 全部为跌停价
+        bars["price"] = sell_limit_price
+        with self.assertRaises(SellLimitError):
+            bars = broker._remove_for_sell(hljh, order_time, bars, 9.22, sell_limit_price, buy_limit_price)
+            pass

@@ -635,7 +635,7 @@ class Broker:
 
         self.entrusts[en.eid] = en
 
-        _, buy_limit_price, _ = await feed.get_trade_price_limits(
+        _, buy_limit_price, sell_limit_price = await feed.get_trade_price_limits(
             security, bid_time.date()
         )
 
@@ -651,7 +651,7 @@ class Broker:
 
         # 移除掉涨停和价格高于委买价的bar后，看还能买多少股
         bars = self._remove_for_buy(
-            security, bid_time, bars, bid_price, buy_limit_price
+            security, bid_time, bars, bid_price, buy_limit_price, sell_limit_price
         )
 
         # 将买入数限制在可用资金范围内
@@ -670,17 +670,17 @@ class Broker:
                 with_stack=True,
             )
 
-        mean_price, filled, close_time = self._match_buy(bars, shares_to_buy)
+        mean_price, filled, close_time = self._match_bid(bars, shares_to_buy)
         if filled == 0:
             raise VolumeNotMeet(security, bid_price, with_stack=True)
 
         return await self._after_buy(en, mean_price, filled, close_time)
 
-    def _match_buy(
+    def _match_bid(
         self, bid_queue, shares_to_buy
     ) -> Tuple[float, float, datetime.datetime]:
         """计算此次买入的成交均价和成交量
-
+        
         Args:
             bid_queue : 撮合数据
             shares_to_buy : 要买入的股数
@@ -1135,7 +1135,7 @@ class Broker:
             f"{bid_time}\t{security}\t{bid_shares}\t{bid_price}\t{EntrustSide.SELL}"
         )
         logger.info("卖出委托: %s %s %s", security, bid_price, bid_shares, date=bid_time)
-        _, _, sell_limit_price = await feed.get_trade_price_limits(
+        _, buy_limit_price, sell_limit_price = await feed.get_trade_price_limits(
             security, bid_time.date()
         )
 
@@ -1154,12 +1154,8 @@ class Broker:
             raise NoDataForMatch(security, bid_time, with_stacks=True)
 
         bars = self._remove_for_sell(
-            security, bid_time, bars, bid_price, sell_limit_price
+            security, bid_time, bars, bid_price, sell_limit_price, buy_limit_price
         )
-
-        c, v = bars["price"], bars["volume"]
-
-        cum_v = np.cumsum(v)
 
         shares_to_sell = self._get_sellable_shares(security, bid_shares, bid_time)
         if shares_to_sell == 0:
@@ -1167,23 +1163,7 @@ class Broker:
             logger.info("%s", self.get_unclosed_trades(bid_time.date()), date=bid_time)
             raise PositionError(security, bid_time, with_stack=True)
 
-        # until i the order can be filled
-        where_total_filled = np.argwhere(cum_v >= shares_to_sell)
-        if len(where_total_filled) == 0:
-            i = len(v) - 1
-        else:
-            i = np.min(where_total_filled)
-
-        close_time = bars[i]["frame"]
-        # 也许到当天结束，都没有足够的股票
-        filled = min(cum_v[i], shares_to_sell)
-
-        # 最后一周期，只需要成交剩余的部分
-        vol = v[: i + 1].copy()
-        vol[-1] = filled - np.sum(vol[:-1])
-
-        money = sum(c[: i + 1] * vol)
-        mean_price = money / filled
+        mean_price, filled, close_time = self._match_bid(bars, shares_to_sell)
 
         en = Entrust(
             security, EntrustSide.SELL, bid_shares, bid_price, bid_time, bid_type
@@ -1199,7 +1179,7 @@ class Broker:
         )
 
         return await self._after_sell(en, mean_price, filled)
-
+    
     def _get_sellable_shares(
         self, security: str, shares_asked: int, bid_time: datetime.datetime
     ) -> int:
@@ -1233,12 +1213,13 @@ class Broker:
         order_time: datetime.datetime,
         bars: np.ndarray,
         price: float,
-        limit_price: float,
+        buy_limit_price: float,
+        sell_limit_price: float,
     ) -> np.ndarray:
         """
-        去掉已达到涨停时的分钟线，或者价格高于买入价的bars
+        去掉已达到涨停时的分钟线，或者价格高于买入价的bars，并且，如果当天有跌停价，将该处的成交量修改为无穷大，以便后面做撮合时，可以无限量买入
         """
-        reach_limit = array_price_equal(bars["price"], limit_price)
+        reach_limit = array_price_equal(bars["price"], buy_limit_price)
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
@@ -1248,6 +1229,8 @@ class Broker:
         if bars.size == 0:
             raise PriceNotMeet(security, price, order_time, with_stack=True)
 
+        where_sell_stop = array_price_equal(bars["price"], sell_limit_price)
+        bars["volume"][where_sell_stop] = 1e20
         return bars
 
     def _remove_for_sell(
@@ -1256,10 +1239,15 @@ class Broker:
         order_time: datetime.datetime,
         bars: np.ndarray,
         price: float,
-        limit_price: float,
+        sell_limit_price: float,
+        buy_limit_price: float
     ) -> np.ndarray:
-        """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交"""
-        reach_limit = array_price_equal(bars["price"], limit_price)
+        """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交
+
+        如果存在涨停的bar，这些bar上的成交量将放大到1e20，以便后面模拟允许涨停板上无限卖出的行为。
+        
+        """
+        reach_limit = array_price_equal(bars["price"], sell_limit_price)
         bars = bars[(~reach_limit)]
 
         if bars.size == 0:
@@ -1269,6 +1257,8 @@ class Broker:
         if bars.size == 0:
             raise PriceNotMeet(security, price, order_time, with_stack=True)
 
+        where_buy_stop = array_price_equal(bars["price"], buy_limit_price)
+        bars["volume"][where_buy_stop] = 1e20
         return bars
 
     async def metrics(
