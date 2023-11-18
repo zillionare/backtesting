@@ -103,7 +103,10 @@ class BaseFeed(metaclass=ABCMeta):
 
     @abstractmethod
     async def get_dr_factor(
-        self, secs: Union[str, List[str]], frames: List[datetime.date], normalized:bool=True
+        self,
+        secs: Union[str, List[str]],
+        frames: List[datetime.date],
+        normalized: bool = True,
     ) -> pd.DataFrame:
         """股票在[start,end]间的每天的复权因子，使用start日进行归一化处理
 

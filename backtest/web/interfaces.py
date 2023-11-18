@@ -10,18 +10,17 @@ from coretypes.errors.trade import (
     TradeError,
 )
 from numpy.typing import NDArray
-from omicron.extensions import numpy_append_fields
+from omicron.core.backtestlog import BacktestLogger
 from sanic import response
 from sanic.blueprints import Blueprint
 
 from backtest.common.helper import jsonify, protected, protected_admin
 from backtest.trade.broker import Broker
-from backtest.trade.datatypes import cash_dtype, daily_position_dtype, rich_assets_dtype
+from backtest.trade.datatypes import daily_position_dtype
 
 ver = pkg_resources.get_distribution("zillionare-backtest").parsed_version
 
 bp = Blueprint("backtest")
-from omicron.core.backtestlog import BacktestLogger
 
 logger = BacktestLogger.getLogger(__name__)
 
@@ -105,7 +104,7 @@ async def stop_backtest(request):
 
     if broker.account_name == "admin":
         raise TradeError("admin账号没有此功能")
-    
+
     if not broker._bt_stopped:
         await broker.stop_backtest()
 
@@ -442,36 +441,68 @@ async def get_assets(request):
     else:
         end = broker._assets[-1]["date"]
 
-    filter = np.argwhere((broker._assets["date"] >= start) & (broker._assets["date"] <= end)).flatten()
+    filter = np.argwhere(
+        (broker._assets["date"] >= start) & (broker._assets["date"] <= end)
+    ).flatten()
     return response.raw(pickle.dumps(broker._assets[filter]))
 
 
 @bp.route("save_backtest", methods=["POST"])
 @protected
 async def save_backtest(request):
+    """在回测结束后，保存回测相关参数及数据。
+
+    通过本接口，可以保存以下数据供之后查阅：
+
+    1. 执行回测时的策略参数
+    2. 策略或者回测描述
+    3. 回测时产生的 tx, positions, assets, metrics等对象
+
+    Args:
+        request Request: json
+
+            - name_prefix: 服务器保存状态后，将返回以此前缀开头的惟一名称。
+            - strategy_params: 策略参数
+            - desc: 策略或者回测描述
+            - baseline: 计算参照用。如不传入，将使用沪深300
+
+    Returns:
+
+        Response: 成功时，通过response.text返回名字。此后可以此名字来存取状态。
+    """
     params = request.json or {}
-    if not "name_prefix" in params:
+    if "name_prefix" not in params:
         raise BadParamsError("name_prefix must be specified")
-    
+
     name_prefix = params["name_prefix"]
-    strategy_params = params.get("strategy_params")
+    strategy_params = params.get("params")
     baseline = params.get("baseline")
+    desc = params.get("desc")
 
     token = request.token
-    accounts = request.ctx.accounts
+    accounts = request.app.ctx.accounts
 
-    name = accounts.save_backtest(name_prefix, strategy_params, token, baseline)
+    name = await accounts.save_backtest(
+        name_prefix, strategy_params, token, baseline, desc
+    )
     return response.text(name)
 
-    
+
 @bp.route("load_backtest", methods=["GET"])
 @protected
 async def load_backtest(request):
-    name = request.args.get("mode", None)
+    """通过名字获取回测状态
+
+    Args:
+    request Request: 以args方式传入，包含以下字段
+
+        - name: save_backtest时返回的名字
+    """
+    name = request.args.get("name", None)
     if name is None:
         raise BadParamsError("name of the backtest is required")
-    
-    token = request.ctx.token
-    accounts = request.ctx.accounts
 
-    return response.raw(accounts.load_backtest(name, token))
+    token = request.token
+    accounts = request.app.ctx.accounts
+
+    return response.json(jsonify(accounts.load_backtest(name, token)))

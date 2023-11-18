@@ -27,6 +27,7 @@ app = init_interface_test()
 
 hljh = "002537.XSHE"
 
+
 class InterfacesTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         principal = 1_000_000
@@ -403,7 +404,9 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                 self.assertAlmostEqual(v["filled"], 100)
 
         positions = bills["positions"]
-        df = pd.DataFrame(positions, columns=["frame", "security", "shares", "sellable", "price"])
+        df = pd.DataFrame(
+            positions, columns=["frame", "security", "shares", "sellable", "price"]
+        )
         np.testing.assert_array_equal(df["shares"], [0, *([500] * 9), 400])
 
     async def test_sell_percent(self):
@@ -461,9 +464,7 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
             await post("stop_backtest", self.admin_token, data={})
 
         self.assertTrue(isinstance(cm.exception, TradeError))
-        self.assertEqual(
-            cm.exception.error_msg, "无法解析错误类型。原1000,错误消息为admin账号没有此功能"
-        )
+        self.assertEqual(cm.exception.error_msg, "无法解析错误类型。原1000,错误消息为admin账号没有此功能")
 
         await post("stop_backtest", self.token, data={})
         info = await get("info", self.token)
@@ -585,3 +586,43 @@ class InterfacesTest(unittest.IsolatedAsyncioTestCase):
                     },
                 )
             self.assertTrue(isinstance(cm.exception, TradeError))
+
+    async def test_save_load_backtest(self):
+        r = await post(
+            "buy",
+            self.token,
+            {
+                "security": "002537.XSHE",
+                "price": 10,
+                "volume": 500,
+                "timeout": 0.5,
+                "order_time": "2022-03-01 10:04:00",
+                "request_id": "123456789",
+            },
+        )
+
+        with self.assertRaises(TradeError) as cm:
+            name = await post(
+                "save_backtest",
+                self.token,
+                {
+                    "name_prefix": "test",
+                    "strategy_params": {"a": 120},
+                    "desc": "this is a test",
+                },
+            )
+            self.assertTrue(cm.exception.message.find("stop_backtest") != -1)
+
+        await post("stop_backtest", self.token, {})
+        name = await post(
+            "save_backtest",
+            self.token,
+            {"name_prefix": "test", "params": {"a": 120}, "desc": "this is a test"},
+        )
+
+        state = await get("load_backtest", self.token, name=name)
+        self.assertEqual(state["name"], name)
+        self.assertTrue("bills" in state)
+        self.assertTrue("metrics" in state)
+        self.assertDictEqual(state["params"], {"a": 120})
+        self.assertEqual(state["desc"], "this is a test")

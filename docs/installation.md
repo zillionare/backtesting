@@ -47,17 +47,21 @@ logging:
   disable_existing_loggers: false
   formatters:
     default:
-      format: '%(bt_date)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s | %(message)s'
+      format: '%(asctime)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s
+        | %(message)s'
+    backtest:
+      format: '%(bt_date)s %(levelname)-1.1s %(name)s:%(funcName)s:%(lineno)s
+        | %(message)s'
     bare:
       format: '%(message)s'
   handlers:
     console:
       class: logging.StreamHandler
       formatter: default
-    file:
+    default:
       class: logging.handlers.RotatingFileHandler
       formatter: default
-      filename: /var/log/backtest/backtest.log
+      filename: /var/log/backtest/sys.log
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
@@ -75,24 +79,18 @@ logging:
       maxBytes: 10485760
       backupCount: 10
       encoding: utf-8
+    backtest:
+      class: logging.handlers.RotatingFileHandler
+      formatter: backtest
+      filename: /var/log/backtest/backtest.log
   loggers:
-    apscheduler:
-      level: INFO
-    sanic:
-      level: WARNING
-    cfg4py:
-      level: WARNING
-    entrust:
-      level: INFO
-      handlers: [entrust]
-      propagate: false
-    trade:
-      level: INFO
-      handlers: [trade]
-      propagate: false
+      backtest:
+        level: INFO
+        handlers: [backtest]
+        propagate: false
   root:
     handlers:
-      - file
+      - console
     level: INFO
 metrics:
   risk_free_rate: 0.03
@@ -122,7 +120,7 @@ influxdb:
     注意配置文件中的`/backtest/api/trade/`，它用来指定backtest server监听端点的前缀，以便您在多组服务间进行区分。而最终的监听端点，则是prefix + version + command。比如，假设您的服务器地址为192.168.1.1，而端口设置为3180，当前版本为0.3，则您的[traderclient](https://zillionare.github.io/traderclient)应该指向`http://192.168.1.1:3180/backtest/api/trade/v0.3/`。您也可以通过访问`http://192.168.1.1:3180/`来得到这个监听端点地址。
 
 !!!Info
-    这里的`bt_date`并非 Python 中 logging 模块支持的模式串关键字，它来自于[omicron.core.backtestlog](https://zillionare.github.io/omicron/latest/api/omicron/#backtesting-log-facility)，该功能从omicron 2.0.0.a76版本之后提供。
+    这里的`bt_date`并非 Python 中 logging 模块支持的模式串关键字，它来自于[omicron.core.backtestlog](https://zillionare.github.io/omicron/latest/api/omicron/#backtesting-log-facility)，该功能从omicron 2.0.0.a76版本之后提供。使用`bt_date`，生成的日志将是回测时间，而非系统时间，这对调试非常有用。
 
 第一部分是告诉backtest如何输出日志。注意这里除了配置一般日志外，还配置了entrust和trade两个事务日志，这两个日志是供数据校验使用的。
 

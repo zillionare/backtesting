@@ -63,22 +63,24 @@ class ZillionareFeed(BaseFeed):
             async for sec, values in Stock.batch_get_day_level_bars_in_range(
                 secs, FrameType.DAY, start, end, fq=fq
             ):
-                if len(values) > 0: # 停牌的情况
-                    close = array_math_round(values["close"], 2) # type: ignore
+                if len(values) > 0:  # 停牌的情况
+                    close = array_math_round(values["close"], 2)  # type: ignore
                 else:
                     close = []
-                df = pd.DataFrame(data=close,
-                                   columns=[sec], 
-                                   index=[v.item().date() for v in values["frame"]])# type: ignore
-                
-                if len(df) == 0 or df.index[0] > start: # type: ignore
+                df = pd.DataFrame(
+                    data=close,
+                    columns=[sec],
+                    index=[v.item().date() for v in values["frame"]],
+                )  # type: ignore
+
+                if len(df) == 0 or df.index[0] > start:  # type: ignore
                     close = await self.get_close_price(sec, start)
                     df.loc[start, sec] = close
                 sec_dfs.append(df)
 
             df = pd.concat(sec_dfs, axis=1)
             df.sort_index(inplace=True)
-            df.fillna(method='ffill', inplace=True)
+            df.fillna(method="ffill", inplace=True)
             return df
         except Exception:
             logger.warning("get_close_price failed for %s:%s - %s", secs, start, end)
@@ -94,7 +96,10 @@ class ZillionareFeed(BaseFeed):
             raise NoData(sec, date)
 
     async def get_dr_factor(
-        self, secs: Union[str, List[str]], frames: List[datetime.date], normalized:bool=True
+        self,
+        secs: Union[str, List[str]],
+        frames: List[datetime.date],
+        normalized: bool = True,
     ) -> pd.DataFrame:
         if isinstance(secs, str):
             secs = [secs]
@@ -103,17 +108,19 @@ class ZillionareFeed(BaseFeed):
             async for sec, bars in Stock.batch_get_day_level_bars_in_range(
                 secs, FrameType.DAY, frames[0], frames[-1], fq=False
             ):
-                df = pd.DataFrame(data = bars["factor"], #type: ignore
-                                  columns = [sec], 
-                                  index=[v.item().date() for v in bars["frame"]]) #type: ignore
-                if normalized:# fixme: 长时间停牌+复权会导致此处出错，因为iloc[0]可能停牌
+                df = pd.DataFrame(
+                    data=bars["factor"],  # type: ignore
+                    columns=[sec],
+                    index=[v.item().date() for v in bars["frame"]],
+                )  # type: ignore
+                if normalized:  # fixme: 长时间停牌+复权会导致此处出错，因为iloc[0]可能停牌
                     df[sec] = df[sec] / df.iloc[0][sec]
                 dfs.append(df)
 
             df = pd.concat([pd.DataFrame([], index=frames), *dfs], axis=1)
             df.sort_index(inplace=True)
             # issue 13: 停牌时factor假设为1
-            df.iloc[0].fillna(1., inplace=True)
+            df.iloc[0].fillna(1.0, inplace=True)
             df.ffill(inplace=True)
 
             return df

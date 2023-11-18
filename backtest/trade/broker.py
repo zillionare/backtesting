@@ -114,7 +114,7 @@ class Broker:
 
         # 初始本金
         self.principal = principal
-        self._unclosed_trades:Dict[datetime.date, List[str]] = {}  # 未平仓的交易
+        self._unclosed_trades: Dict[datetime.date, List[str]] = {}  # 未平仓的交易
 
         # 委托列表，包括废单和未成交委托
         self.entrusts = {}
@@ -169,11 +169,11 @@ class Broker:
         """
         if dt < self.bt_start:
             raise BadParamsError(f"dt should be later than start {self.bt_start}")
-        
+
         ipos = np.argwhere(dt >= self._cash["date"]).flatten()
         if len(ipos) == 0:
             return self.principal
-        
+
         ipos = ipos[-1]
         return self._cash[ipos]["cash"].item()
 
@@ -213,22 +213,28 @@ class Broker:
 
         last_date = np.max(self._positions["date"])
         if dt > last_date:
-            filter = (self._positions["date"] == last_date) & (self._positions["security"] != None)
+            filter = (self._positions["date"] == last_date) & (
+                self._positions["security"] != None  # noqa: E711
+            )
             result = self._positions[filter]
             result["sellable"] = result["shares"]
-            return result[list(dtype.names)].astype(dtype) # type: ignore
+            return result[list(dtype.names)].astype(dtype)  # type: ignore
 
-        filter = (self._positions["date"] == dt) & (self._positions["security"] != None)
+        filter = (self._positions["date"] == dt) & (
+            self._positions["security"] != None  # noqa: E711
+        )
         result = self._positions[filter]
 
-        return result[list(dtype.names)].astype(dtype) # type: ignore
+        return result[list(dtype.names)].astype(dtype)  # type: ignore
 
-    async def _query_market_values(self, start: datetime.date, end: datetime.date)->pd.Series:
+    async def _query_market_values(
+        self, start: datetime.date, end: datetime.date
+    ) -> pd.Series:
         frames = [tf.int2date(d) for d in tf.get_frames(start, end, FrameType.DAY)]
 
         filter = (self._positions["date"] >= start) & (self._positions["date"] <= end)
         secs = list(set(self._positions[filter]["security"]))
-        
+
         if len(secs):
             feed = get_app_context().feed
             df_prices = await feed.batch_get_close_price_in_range(secs, start, end)
@@ -267,7 +273,7 @@ class Broker:
         if pos_end != cash_end:
             msg = f"cash table {cash_end} is not synced with position table {pos_end}"
             raise TradeError(msg, with_stack=True)
-        
+
         end = min(end, cash_end)
         if start > end:
             return
@@ -279,10 +285,8 @@ class Broker:
         assets = mv + self._cash[filter]["cash"]
 
         self._assets = np.append(
-            self._assets[:-1], # 最后一行是重叠的
-            assets.to_frame().to_records(index=True).astype(
-                self._assets.dtype
-            ),
+            self._assets[:-1],  # 最后一行是重叠的
+            assets.to_frame().to_records(index=True).astype(self._assets.dtype),
         )
 
     async def info(self, dt: Optional[datetime.date] = None) -> Dict:
@@ -336,7 +340,9 @@ class Broker:
         }
 
     def get_returns(
-        self, start_date: Optional[datetime.date] = None, end_date: Optional[datetime.date] = None
+        self,
+        start_date: Optional[datetime.date] = None,
+        end_date: Optional[datetime.date] = None,
     ) -> NDArray:
         """求截止`end_date`时的每日回报
 
@@ -363,8 +369,8 @@ class Broker:
             )
 
         # it's ok if iend + 1 > len(self._assets)
-        assets = self._assets[istart: iend+1]["assets"]
-        return assets[1:]/assets[:-1] - 1
+        assets = self._assets[istart : iend + 1]["assets"]
+        return assets[1:] / assets[:-1] - 1
 
     @property
     def assets(self) -> float:
@@ -394,13 +400,15 @@ class Broker:
         if date > last:
             # 使用最后一天的持仓，last~date之间的收盘价计算每日市值，再加上现金
             # 因此这里不能使用_query_market_values
-            filter = (self._positions["date"] == last) & (self._positions["security"] != None)
-            
+            filter = (self._positions["date"] == last) & (
+                self._positions["security"] != None  # noqa: E711
+            )
+
             secs = self._positions[filter]["security"]
-            
-            if len(secs) == 0: # 无持仓
+
+            if len(secs) == 0:  # 无持仓
                 return self._cash[-1]["cash"]
-            
+
             feed = get_app_context().feed
             df_prices = await feed.batch_get_close_price_in_range(secs, last, date)
 
@@ -416,9 +424,8 @@ class Broker:
             pos = np.argwhere(date >= self._assets["date"]).flatten()
             if len(pos) > 0:
                 return self._assets[pos[-1]]["assets"].item()
-            else: # 日期小于回测起始日
+            else:  # 日期小于回测起始日
                 return self.principal
-
 
     def _index_of(
         self, arr: np.ndarray, date: datetime.date, index: str = "date"
@@ -500,10 +507,12 @@ class Broker:
             return np.array([], dtype=position_dtype)
 
         last_day = self._positions[-1]["date"]
-        filter = (self._positions["date"] == last_day) & (self._positions["security"] != None)
+        filter = (self._positions["date"] == last_day) & (
+            self._positions["security"] != None  # noqa: E711
+        )
         result = self._positions[filter]
 
-        return result[list(position_dtype.names)].astype(position_dtype) # type: ignore
+        return result[list(position_dtype.names)].astype(position_dtype)  # type: ignore
 
     def __str__(self):
         s = (
@@ -528,9 +537,7 @@ class Broker:
             bid_time : 交易发生的时间
         """
         if self._bt_stopped:
-            logger.warning(
-                "回测已结束，账号已冻结: %s, %s", bid_time, self.bt_end, date=bid_time
-            )
+            logger.warning("回测已结束，账号已冻结: %s, %s", bid_time, self.bt_end, date=bid_time)
             raise AccountStoppedError(bid_time, self.bt_end, with_stack=True)
 
         if bid_time.date() < self.bt_start:
@@ -541,9 +548,7 @@ class Broker:
             raise BadParamsError(msg)
 
         if bid_time.date() > self.bt_end:
-            logger.warning(
-                "委托时间超过回测结束时间: %s, %s", bid_time, self.bt_end, date=bid_time
-            )
+            logger.warning("委托时间超过回测结束时间: %s, %s", bid_time, self.bt_end, date=bid_time)
             msg = f"委托时间 {bid_time} 超过了回测结束时间 {self.bt_end}."
             raise BadParamsError(msg)
 
@@ -562,7 +567,7 @@ class Broker:
                 "委托时间必须递增出现：%s -> %s", self._last_trade_time, bid_time, date=bid_time
             )
             raise TimeRewindError(bid_time, self._last_trade_time, with_stack=True)
-        
+
         cash_end = self._cash[-1]["date"]
         pos_end = self._positions[-1]["date"]
 
@@ -680,7 +685,7 @@ class Broker:
         self, bid_queue, shares_to_buy
     ) -> Tuple[float, float, datetime.datetime]:
         """计算此次买入的成交均价和成交量
-        
+
         Args:
             bid_queue : 撮合数据
             shares_to_buy : 要买入的股数
@@ -794,12 +799,11 @@ class Broker:
         return trade
 
     def _update_cash(self, cash_change: float, date: datetime.date):
-        """在买入、卖出之后，更新现金流表
-        """
+        """在买入、卖出之后，更新现金流表"""
         ipos = np.argwhere(self._cash["date"] == date).flatten()
         if len(ipos) != 1:
             raise IndexError("date not found in cash table. before_trade not called?")
-        
+
         i = ipos.item()
         self._cash[i]["cash"] += cash_change
 
@@ -849,7 +853,9 @@ class Broker:
 
         start = self._positions[-1]["date"]
         if start >= end:
-            logger.warning("no need forward positions table, start %, end %", start, end)
+            logger.warning(
+                "no need forward positions table, start %, end %", start, end
+            )
             return
 
         # 注意 frames[0]已经存在持仓
@@ -859,9 +865,13 @@ class Broker:
 
         feed = get_app_context().feed
 
-        logger.info("handling positions forward from %s to %s", frames[1], end, date=end)
+        logger.info(
+            "handling positions forward from %s to %s", frames[1], end, date=end
+        )
 
-        cur_position = self._positions[self._positions["date"]==self._positions[-1]["date"]]
+        cur_position = self._positions[
+            self._positions["date"] == self._positions[-1]["date"]
+        ]
 
         # 已清空股票不需要展仓, issue 9
         last_held_position = cur_position[cur_position["shares"] != 0]
@@ -884,12 +894,12 @@ class Broker:
             paddings["shares"] = rec["shares"] * dr_info[sec]
             # 过了一天，所有股都变可售，除了除权股
             paddings["sellable"] = paddings["shares"].shift()
-            paddings.iloc[0,2] = rec["shares"].item()
+            paddings.iloc[0, 2] = rec["shares"].item()
 
             paddings["price"] = rec["price"] / dr_info[sec]
 
             adjust_shares = paddings["shares"].diff()
-            for frame, adjust_share in adjust_shares[adjust_shares>0].items():
+            for frame, adjust_share in adjust_shares[adjust_shares > 0].items():
                 order_time = tf.combine_time(frame, 15)
                 trade = Trade(
                     uuid.uuid4().hex,
@@ -902,8 +912,14 @@ class Broker:
                 )
                 self.trades[trade.tid] = trade
                 self._update_unclosed_trades(trade.tid, order_time.date())
-            self._positions = np.concatenate((self._positions, paddings.iloc[1:].to_records(index=True).astype(self._positions.dtype)))
-
+            self._positions = np.concatenate(
+                (
+                    self._positions,
+                    paddings.iloc[1:]
+                    .to_records(index=True)
+                    .astype(self._positions.dtype),
+                )
+            )
 
     async def _update_positions(self, trade: Trade, bid_date: datetime.date):
         """更新持仓信息
@@ -915,7 +931,10 @@ class Broker:
             bid_date: 买入/卖出日期
         """
         # delete empty records since we'll have at least one for bid_date
-        if self._positions[-1]["date"] == bid_date and self._positions[-1]["security"] is None:
+        if (
+            self._positions[-1]["date"] == bid_date
+            and self._positions[-1]["security"] is None
+        ):
             self._positions = self._positions[:-1]
 
         # find if the security is already in the position (same day)
@@ -962,59 +981,6 @@ class Broker:
                 )
 
         return
-
-    @deprecated("removed since version 0.5.0")
-    async def _update_assets(self, cash_change: float, bid_time: datetime.datetime):
-        """更新当前资产（含持仓）
-
-        在每次资产变动时进行计算和更新，并对之前的资产表进行补全。
-
-        Args:
-            cash_change : 变动的现金
-            bid_time: 委托时间
-        """
-        logger.info("cash change: %s", cash_change, date=bid_time)
-
-        # 补齐资产表到上一个交易日
-        if self._assets.size == 0:
-            _before_start = tf.day_shift(self.bt_start, -1)
-            self._assets = np.array(
-                [(_before_start, self.principal)], dtype=assets_dtype
-            )
-
-        start = tf.day_shift(self._assets[-1]["date"], 1)
-        end = tf.day_shift(bid_time, -1)
-        if start < end:
-            await self._forward_assets(start, end)
-
-        bid_date = bid_time.date()
-
-        # _before_trade应该已经为当日交易准备好了可用资金数据
-        assert self._cash[-1]["date"] == bid_date
-        self._cash[-1]["cash"] += cash_change
-
-        assets, cash, mv = await self._calc_assets(bid_date)
-
-        i = self._index_of(self._assets, bid_date)
-        if i is None:
-            self._assets = np.append(
-                self._assets, np.array([(bid_date, assets)], dtype=assets_dtype)
-            )
-        else:
-            # don't use self._assets[self._assets["date"] == date], this always return copy
-            self._assets[i]["assets"] = assets
-
-        info = np.array(
-            [(bid_date, assets, cash, mv, cash_change)],
-            dtype=[
-                ("date", "O"),
-                ("assets", float),
-                ("cash", float),
-                ("market value", float),
-                ("change", float),
-            ],
-        )
-        logger.info("\n%s", tabulate_numpy_array(info), date=bid_date)
 
     async def _after_sell(
         self, en: Entrust, price: float, to_sell: float
@@ -1179,7 +1145,7 @@ class Broker:
         )
 
         return await self._after_sell(en, mean_price, filled)
-    
+
     def _get_sellable_shares(
         self, security: str, shares_asked: int, bid_time: datetime.datetime
     ) -> int:
@@ -1240,12 +1206,12 @@ class Broker:
         bars: np.ndarray,
         price: float,
         sell_limit_price: float,
-        buy_limit_price: float
+        buy_limit_price: float,
     ) -> np.ndarray:
         """去掉当前价格低于price，或者已经达到跌停时的bars,这些bars上无法成交
 
         如果存在涨停的bar，这些bar上的成交量将放大到1e20，以便后面模拟允许涨停板上无限卖出的行为。
-        
+
         """
         reach_limit = array_price_equal(bars["price"], sell_limit_price)
         bars = bars[(~reach_limit)]
@@ -1303,7 +1269,7 @@ class Broker:
         """
         if not self._bt_stopped:
             raise TradeError("call stop_backtest before invoke this")
-        
+
         try:
             rf = cfg.metrics.risk_free_rate / cfg.metrics.annual_days
         except Exception:
@@ -1351,8 +1317,6 @@ class Broker:
         # win_rate
         wr = len([t for t in tx if t.profit > 0]) / total_tx
 
-        # 当计算[start, end]之间的盈亏时，我们实际上要多取一个交易日，即start之前一个交易日的资产数据
-        _start = tf.day_shift(start, -1)
         total_profit = self._assets[-1]["assets"] - self._assets[0]["assets"]
 
         returns = self.get_returns(start, end)
@@ -1419,10 +1383,10 @@ class Broker:
         await self._forward_positions(self.bt_end)
         await self._forward_assets(self.bt_end)
 
-    def bills(self)->dict:
+    def bills(self) -> dict:
         if not self._bt_stopped:
             raise TradeError("call `bt_stopped` first!")
-        
+
         results = {}
         results["tx"] = self.transactions
         results["trades"] = self.trades

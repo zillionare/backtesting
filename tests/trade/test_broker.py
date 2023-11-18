@@ -129,15 +129,18 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(principal, broker.get_cash(start), 2)
         self.assertAlmostEqual(principal, broker.get_cash(end), 2)
 
-        broker._cash = np.array([
-            (mar1, 1e6),
-            (mar2, 2e6),
-            (mar3, 3e6),
-            (mar4, 4e6),
-            (mar7, 5e6),
-            (mar8, 6e6),
-            (mar9, 7e6)
-        ], dtype=cash_dtype)
+        broker._cash = np.array(
+            [
+                (mar1, 1e6),
+                (mar2, 2e6),
+                (mar3, 3e6),
+                (mar4, 4e6),
+                (mar7, 5e6),
+                (mar8, 6e6),
+                (mar9, 7e6),
+            ],
+            dtype=cash_dtype,
+        )
 
         self.assertEqual(broker.get_cash(mar4), 4e6)
         self.assertEqual(broker.get_cash(datetime.date(2022, 3, 6)), 4e6)
@@ -285,7 +288,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_sell(self):
         start = datetime.date(2022, 3, 1)
-        end = datetime.date(2022, 3, 14)        
+        end = datetime.date(2022, 3, 14)
         broker = Broker("test", 1e6, 1e-4, start, end)
         tyst, hljh = "603717.XSHG", "002537.XSHE"
 
@@ -480,16 +483,20 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
             side_effect=[
-                pd.DataFrame({tyst: [1, 1]}, index=[datetime.date(2022, 3, i) for i in (7, 8)]),
-                pd.DataFrame({tyst: [1, 1]}, index=[datetime.date(2022, 3, i) for i in (8, 9)]),
-                pd.DataFrame({
-                    hljh: [1, 1.2],
-                    tyst: [1, 1.2]
-                }, index=[datetime.date(2022, 3, i) for i in (9, 10)]),
-                pd.DataFrame({
-                    hljh: [1, 1, 1.2],
-                    tyst: [1, 1, 1.2]
-                }, index=[datetime.date(2022, 3, i) for i in (10, 11, 14)])
+                pd.DataFrame(
+                    {tyst: [1, 1]}, index=[datetime.date(2022, 3, i) for i in (7, 8)]
+                ),
+                pd.DataFrame(
+                    {tyst: [1, 1]}, index=[datetime.date(2022, 3, i) for i in (8, 9)]
+                ),
+                pd.DataFrame(
+                    {hljh: [1, 1.2], tyst: [1, 1.2]},
+                    index=[datetime.date(2022, 3, i) for i in (9, 10)],
+                ),
+                pd.DataFrame(
+                    {hljh: [1, 1, 1.2], tyst: [1, 1, 1.2]},
+                    index=[datetime.date(2022, 3, i) for i in (10, 11, 14)],
+                ),
             ],
         ):
             await make_trades()
@@ -517,9 +524,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 [
                     (mar7, tyst, 500.0, 0.0, 14.84),
                     (mar8, tyst, 1500.0, 500.0, 14.80666667),
-                    (mar9, tyst, 1500.0,1500.0,14.80666667),
-                    (mar10,tyst,700.0, 400.0, 12.33888889),
-                    (mar11, tyst,700.0,700.0,12.33888889),
+                    (mar9, tyst, 1500.0, 1500.0, 14.80666667),
+                    (mar10, tyst, 700.0, 400.0, 12.33888889),
+                    (mar11, tyst, 700.0, 700.0, 12.33888889),
                     (mar14, tyst, 840.0, 700.0, 10.28240741),
                 ],
                 dtype=daily_position_dtype,
@@ -641,21 +648,23 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(assets, broker.cash + 10 * 500, 2)
 
         broker = Broker("test", 1e6, 1e-4, start, end)
-        broker._assets = np.array([
-            (mar1, 1e4),
-            (mar2, 1e5),
-            (mar3, 1e6),
-            (mar4, 1e7),
-            (mar7, 1e8),
-            (mar9, 1e9),
-        ], dtype=assets_dtype)
+        broker._assets = np.array(
+            [
+                (mar1, 1e4),
+                (mar2, 1e5),
+                (mar3, 1e6),
+                (mar4, 1e7),
+                (mar7, 1e8),
+                (mar9, 1e9),
+            ],
+            dtype=assets_dtype,
+        )
 
         assets = await broker.get_assets(mar4)
         self.assertEqual(assets, 1e7)
 
         assets = await broker.get_assets(datetime.date(2022, 3, 5))
         self.assertEqual(assets, 1e7)
-
 
     async def test_before_trade(self):
         """this also test get_cash"""
@@ -697,11 +706,11 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertListEqual(
-            [ 0, 500, 500, 500, 1000, 1000, 1500], broker._positions["shares"].tolist()
+            [0, 500, 500, 500, 1000, 1000, 1500], broker._positions["shares"].tolist()
         )
 
         self.assertListEqual(
-            [ 0, 0, 500, 500, 500, 1000, 0], broker._positions["sellable"].tolist()
+            [0, 0, 500, 500, 500, 1000, 0], broker._positions["sellable"].tolist()
         )
 
     async def test_get_position(self):
@@ -750,36 +759,58 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         await broker._forward_assets(datetime.date(2022, 3, 4))
         self.assertEqual(1, broker._assets.size)
 
-        broker._cash = np.concatenate((broker._cash, np.array([
-            (datetime.date(2022, 3, 1), 1.e6),
-            (datetime.date(2022, 3, 2), 1.e6)
-        ],dtype=cash_dtype)))
+        broker._cash = np.concatenate(
+            (
+                broker._cash,
+                np.array(
+                    [
+                        (datetime.date(2022, 3, 1), 1.0e6),
+                        (datetime.date(2022, 3, 2), 1.0e6),
+                    ],
+                    dtype=cash_dtype,
+                ),
+            )
+        )
 
-        broker._positions = np.concatenate((broker._positions, np.array([
-            (datetime.date(2022, 3, 1), None, 0, 0, 0),
-            (datetime.date(2022, 3, 2), None, 0, 0, 0)
-        ], dtype=daily_position_dtype)))
+        broker._positions = np.concatenate(
+            (
+                broker._positions,
+                np.array(
+                    [
+                        (datetime.date(2022, 3, 1), None, 0, 0, 0),
+                        (datetime.date(2022, 3, 2), None, 0, 0, 0),
+                    ],
+                    dtype=daily_position_dtype,
+                ),
+            )
+        )
 
         ## assets date is aligned with cash/positions
         await broker._forward_assets(datetime.date(2022, 3, 4))
         self.assertEqual(datetime.date(2022, 3, 2), broker._assets[-1]["date"])
-        self.assertEqual(1.e6, broker._assets[-1]["assets"])
+        self.assertEqual(1.0e6, broker._assets[-1]["assets"])
 
         # 4. 进行了一次交易，检查是否更新
         broker = Broker("test", 1e6, 1e-4, bt_start, bt_stop)
 
-        broker._cash = np.array([
-            (datetime.date(2022, 2, 28), 1.e6),
-            (datetime.date(2022, 3, 1), 1.e6),
-            (datetime.date(2022, 3, 2), 1.e6 - 500 * 10)
-        ], dtype=cash_dtype)
+        broker._cash = np.array(
+            [
+                (datetime.date(2022, 2, 28), 1.0e6),
+                (datetime.date(2022, 3, 1), 1.0e6),
+                (datetime.date(2022, 3, 2), 1.0e6 - 500 * 10),
+            ],
+            dtype=cash_dtype,
+        )
 
         ## 模拟买入hljh 500
-        broker._positions = np.array([
-            (datetime.date(2022, 2, 28), None, 0, 0, 0),
-            (datetime.date(2022, 3, 1), None, 0, 0, 0),
-            (datetime.date(2022, 3, 2), hljh, 500, 0, 10)
-        ], dtype=daily_position_dtype)
+        broker._positions = np.array(
+            [
+                (datetime.date(2022, 2, 28), None, 0, 0, 0),
+                (datetime.date(2022, 3, 1), None, 0, 0, 0),
+                (datetime.date(2022, 3, 2), hljh, 500, 0, 10),
+            ],
+            dtype=daily_position_dtype,
+        )
 
         await broker._forward_assets(datetime.date(2022, 3, 2))
         self.assertEqual(datetime.date(2022, 3, 2), broker._assets[-1]["date"])
@@ -787,31 +818,46 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         ## 模拟买入tyst，但没有更新cash表，这不是单测的重点
         broker._positions = np.concatenate(
-            (broker._positions, 
-             np.array([(datetime.date(2022, 3, 2), tyst, 1000, 0, 8.5)],dtype=daily_position_dtype)
-            ))
+            (
+                broker._positions,
+                np.array(
+                    [(datetime.date(2022, 3, 2), tyst, 1000, 0, 8.5)],
+                    dtype=daily_position_dtype,
+                ),
+            )
+        )
         await broker._forward_assets(datetime.date(2022, 3, 2))
         self.assertAlmostEqual(1015105, broker._assets[-1]["assets"], 2)
 
         # 5. 换一天再买入hljh，更新assets
-        broker._cash = np.concatenate((broker._cash,
-                                       np.array([(mar3, 1.e6), (mar4, 1.e6)],dtype=cash_dtype)))
-        broker._positions = np.concatenate((broker._positions,
-                                            np.array([(mar3, hljh, 1000, 0, 20),
-                                                      (mar4, tyst, 500, 0, 15)], dtype=daily_position_dtype)))
-        
+        broker._cash = np.concatenate(
+            (broker._cash, np.array([(mar3, 1.0e6), (mar4, 1.0e6)], dtype=cash_dtype))
+        )
+        broker._positions = np.concatenate(
+            (
+                broker._positions,
+                np.array(
+                    [(mar3, hljh, 1000, 0, 20), (mar4, tyst, 500, 0, 15)],
+                    dtype=daily_position_dtype,
+                ),
+            )
+        )
+
         await broker._forward_assets(mar4)
         ## should have assets up to 2022, 3, 4
         self.assertEqual(5, broker._assets.size)
 
-        exp = np.array([
-            (feb28, 1000000.        ),
-            (mar1, 1000000.        ),
-            (mar2, 1015105.),
-            (mar3, 1010610.        ),
-            # 只有tyst 500股，收盘价14.84
-            (mar4, 1007420.)],
-            dtype=assets_dtype)
+        exp = np.array(
+            [
+                (feb28, 1000000.0),
+                (mar1, 1000000.0),
+                (mar2, 1015105.0),
+                (mar3, 1010610.0),
+                # 只有tyst 500股，收盘价14.84
+                (mar4, 1007420.0),
+            ],
+            dtype=assets_dtype,
+        )
 
         np.testing.assert_array_equal(exp["date"], broker._assets["date"])
         np.testing.assert_array_almost_equal(
@@ -822,32 +868,38 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         ## 1 买入两只，2号tyst停牌（无数据）hljh加仓，3号都无操作,4号卖出hljh
         broker = Broker("test", 1e6, 1e-4, bt_start, bt_stop)
 
-        broker._cash = np.array([
-            (feb28, 1e6),
-            (mar1, 0.9e6),
-            (mar2, 0.9e6),
-            (mar3, 0.9e6),
-            (mar4, 0.9e6),
-        ], dtype=cash_dtype)
+        broker._cash = np.array(
+            [
+                (feb28, 1e6),
+                (mar1, 0.9e6),
+                (mar2, 0.9e6),
+                (mar3, 0.9e6),
+                (mar4, 0.9e6),
+            ],
+            dtype=cash_dtype,
+        )
 
-        broker._positions = np.array([
-            (feb28, None, 0, 0, 0),
-            (mar1, hljh, 1000, 0, 9.5),
-            (mar1, tyst, 500, 0, 9.5),
-            (mar2, hljh, 1000, 1000, 9.5),
-            (mar2, tyst, 500, 500, 9.5),
-            (mar3, hljh, 1000, 1000, 9.5),
-            (mar3, tyst, 500, 500, 9.5),
-            (mar4, hljh, 500, 500, 9.5),
-            (mar4, tyst, 500, 500, 9.5),
-        ], dtype=daily_position_dtype)
+        broker._positions = np.array(
+            [
+                (feb28, None, 0, 0, 0),
+                (mar1, hljh, 1000, 0, 9.5),
+                (mar1, tyst, 500, 0, 9.5),
+                (mar2, hljh, 1000, 1000, 9.5),
+                (mar2, tyst, 500, 500, 9.5),
+                (mar3, hljh, 1000, 1000, 9.5),
+                (mar3, tyst, 500, 500, 9.5),
+                (mar4, hljh, 500, 500, 9.5),
+                (mar4, tyst, 500, 500, 9.5),
+            ],
+            dtype=daily_position_dtype,
+        )
 
         with mock.patch(
             "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
         ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: np.array(
-                    [(mar1, 10.45)], #3月2日起一直停牌
+                    [(mar1, 10.45)],  # 3月2日起一直停牌
                     dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
                 ),
                 hljh: np.array(
@@ -866,15 +918,11 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: np.array(
-                    [(mar1, 10.45)], #3月2日起一直停牌
+                    [(mar1, 10.45)],  # 3月2日起一直停牌
                     dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
                 ),
                 hljh: np.array(
-                    [
-                        (mar1, 9.67),
-                        (mar2, 9.67), # 3号停牌
-                        (mar4, 9.68)
-                    ],
+                    [(mar1, 9.67), (mar2, 9.67), (mar4, 9.68)],  # 3号停牌
                     dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
                 ),
             }.items()
@@ -887,7 +935,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                     (mar1, 914895),
                     (mar2, 914895),
                     (mar3, 914895),
-                    (mar4, 910065)
+                    (mar4, 910065),
                 ],
                 dtype=assets_dtype,
             )
@@ -899,33 +947,42 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         # issue 36
         broker = Broker("test", 1e6, 1e-4, mar1, mar14)
-        dr = pd.DataFrame([
-            (mar1, 1, 1),
-            (mar2, 2, 1),
-            (mar3, 2, 1.5),
-            (mar4, 2, 1.5),
-            (mar7, 2, 1.5),
-            (mar8, 2, 1.5)
-        ], columns=["frame", hljh, tyst])
+        dr = pd.DataFrame(
+            [
+                (mar1, 1, 1),
+                (mar2, 2, 1),
+                (mar3, 2, 1.5),
+                (mar4, 2, 1.5),
+                (mar7, 2, 1.5),
+                (mar8, 2, 1.5),
+            ],
+            columns=["frame", hljh, tyst],
+        )
         dr.set_index("frame", inplace=True)
         with mock.patch(
             "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor"
         ) as mocked:
             mocked.return_value = dr
-            await broker.buy(hljh, 9.5, 1000, datetime.datetime(2022, 3, 1, 9,30))
+            await broker.buy(hljh, 9.5, 1000, datetime.datetime(2022, 3, 1, 9, 30))
             await broker.buy(tyst, 15.45, 1000, datetime.datetime(2022, 3, 1, 9, 30))
-            await broker.sell(hljh,9.12, 500, datetime.datetime(2022, 3, 8, 9, 30))
+            await broker.sell(hljh, 9.12, 500, datetime.datetime(2022, 3, 8, 9, 30))
 
             await broker._forward_assets(mar8)
-            exp = np.array([(datetime.date(2022, 2, 28), 1000000. ),
-                            (datetime.date(2022, 3, 1), 1000097.52),
-                            (datetime.date(2022, 3, 2), 1011057.52),
-                            (datetime.date(2022, 3, 3), 1018817.52),
-                            (datetime.date(2022, 3, 4), 1016717.52),
-                            (datetime.date(2022, 3, 7), 1016952.52),
-                            (datetime.date(2022, 3, 8), 1015787.05)],
-                            dtype=[('date', 'O'), ('assets', '<f8')])
-            np.testing.assert_array_almost_equal(exp["assets"], broker._assets["assets"],2)
+            exp = np.array(
+                [
+                    (datetime.date(2022, 2, 28), 1000000.0),
+                    (datetime.date(2022, 3, 1), 1000097.52),
+                    (datetime.date(2022, 3, 2), 1011057.52),
+                    (datetime.date(2022, 3, 3), 1018817.52),
+                    (datetime.date(2022, 3, 4), 1016717.52),
+                    (datetime.date(2022, 3, 7), 1016952.52),
+                    (datetime.date(2022, 3, 8), 1015787.05),
+                ],
+                dtype=[("date", "O"), ("assets", "<f8")],
+            )
+            np.testing.assert_array_almost_equal(
+                exp["assets"], broker._assets["assets"], 2
+            )
 
     async def test_update_positions(self):
         start = datetime.date(2022, 3, 1)
@@ -1011,7 +1068,8 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         frames = [datetime.date(2022, 3, i) for i in (1, 2, 3, 4, 7)]
         mocked_dr_info = pd.DataFrame(
-            {hljh: [1.] + [1.1] * 4, tyst: np.array([1., 1., 1.2, 1.2, 1.2])}, index=frames
+            {hljh: [1.0] + [1.1] * 4, tyst: np.array([1.0, 1.0, 1.2, 1.2, 1.2])},
+            index=frames,
         )
 
         with mock.patch("arrow.now", return_value=datetime.datetime(2022, 3, 14, 15)):
@@ -1021,20 +1079,27 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             ):
                 await broker._forward_positions(datetime.date(2022, 3, 7))
                 exp_hljh = [500, 550, 550, 550, 550]
-                actual_hljh = broker._positions["shares"][broker._positions["security"]==hljh]
+                actual_hljh = broker._positions["shares"][
+                    broker._positions["security"] == hljh
+                ]
                 np.testing.assert_almost_equal(exp_hljh, actual_hljh)
 
-
                 exp_tyst = [1500, 1500, 1800, 1800, 1800]
-                actual_tyst = broker._positions["shares"][broker._positions["security"]==tyst]
+                actual_tyst = broker._positions["shares"][
+                    broker._positions["security"] == tyst
+                ]
                 np.testing.assert_almost_equal(exp_tyst, actual_tyst)
 
                 self.assertEqual(2, len(broker.trades))
                 with self.assertRaisesRegexp(KeyError, "found!"):
                     for _, v in broker.trades.items():
-                        if v.security == hljh and v.shares == 50 and v.time == datetime.datetime(2022, 3, 2, 15):
+                        if (
+                            v.security == hljh
+                            and v.shares == 50
+                            and v.time == datetime.datetime(2022, 3, 2, 15)
+                        ):
                             raise KeyError("found!")
-    
+
         # issue 9, 对持仓为0的股，不查询价格和dr信息
         start = datetime.date(2022, 3, 1)
         end = datetime.date(2022, 3, 14)
@@ -1045,14 +1110,19 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
                 (datetime.date(2022, 2, 28), None, 0.0, 0.0, 0.0),
                 (datetime.date(2022, 3, 1), None, 0.0, 0.0, 0.0),
                 (datetime.date(2022, 3, 1), hljh, 500.0, 0.0, 9.27),
-                (datetime.date(2022, 3, 4), hljh, 0, 0, 0)
+                (datetime.date(2022, 3, 4), hljh, 0, 0, 0),
             ],
             dtype=daily_position_dtype,
         )
 
-        with mock.patch("backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor") as mocked:
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor"
+        ) as mocked:
             await broker._forward_positions(datetime.date(2022, 3, 10))
-            np.testing.assert_array_equal(broker._positions["date"][4:], [datetime.date(2022, 3, i) for i in (7, 8, 9, 10)])
+            np.testing.assert_array_equal(
+                broker._positions["date"][4:],
+                [datetime.date(2022, 3, i) for i in (7, 8, 9, 10)],
+            )
             mocked.assert_not_called()
 
         broker = Broker("test_forward_positions", 1_000_000, 1e-4, start, end)
@@ -1070,30 +1140,41 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         )
 
         frames = [datetime.date(2022, 3, i) for i in (1, 4, 7, 8, 9)]
-        mocked_dr_info = pd.DataFrame({
-            tyst: [1, 1, 1.2, 1.2, 1.2]
-        }, index = frames)
+        mocked_dr_info = pd.DataFrame({tyst: [1, 1, 1.2, 1.2, 1.2]}, index=frames)
 
-        exp_hljh = np.array([
-            (datetime.date(2022, 3, 1), '002537.XSHE', 500.,   0., 9.27 ),
-            (datetime.date(2022, 3, 4), '002537.XSHE',   0.,   0., 0.   ),
-        ], dtype=daily_position_dtype)
+        exp_hljh = np.array(
+            [
+                (datetime.date(2022, 3, 1), "002537.XSHE", 500.0, 0.0, 9.27),
+                (datetime.date(2022, 3, 4), "002537.XSHE", 0.0, 0.0, 0.0),
+            ],
+            dtype=daily_position_dtype,
+        )
 
-        exp_tyst = np.array([
-            (datetime.date(2022, 3, 1), '603717.XSHG', 500.,   0., 9.27 ),
-            (datetime.date(2022, 3, 4), '603717.XSHG', 500.,   0., 9.27 ),
-            (datetime.date(2022, 3, 7), '603717.XSHG', 600., 500., 7.725),
-            (datetime.date(2022, 3, 8), '603717.XSHG', 600., 600., 7.725),
-            (datetime.date(2022, 3, 9), '603717.XSHG', 600., 600., 7.725)],
-       dtype=daily_position_dtype)
+        exp_tyst = np.array(
+            [
+                (datetime.date(2022, 3, 1), "603717.XSHG", 500.0, 0.0, 9.27),
+                (datetime.date(2022, 3, 4), "603717.XSHG", 500.0, 0.0, 9.27),
+                (datetime.date(2022, 3, 7), "603717.XSHG", 600.0, 500.0, 7.725),
+                (datetime.date(2022, 3, 8), "603717.XSHG", 600.0, 600.0, 7.725),
+                (datetime.date(2022, 3, 9), "603717.XSHG", 600.0, 600.0, 7.725),
+            ],
+            dtype=daily_position_dtype,
+        )
 
-        with mock.patch("backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor", return_value=mocked_dr_info):
+        with mock.patch(
+            "backtest.feed.zillionarefeed.ZillionareFeed.get_dr_factor",
+            return_value=mocked_dr_info,
+        ):
             await broker._forward_positions(datetime.date(2022, 3, 9))
-            actual_hljh = broker._positions[broker._positions["security"]=="002537.XSHE"]
-            actual_tyst = broker._positions[broker._positions["security"]=="603717.XSHG"]
+            actual_hljh = broker._positions[
+                broker._positions["security"] == "002537.XSHE"
+            ]
+            actual_tyst = broker._positions[
+                broker._positions["security"] == "603717.XSHG"
+            ]
             for key in ("shares", "sellable", "price"):
-                np.testing.assert_almost_equal(exp_hljh[key],actual_hljh[key], 2)
-                np.testing.assert_almost_equal(exp_tyst[key],actual_tyst[key])
+                np.testing.assert_almost_equal(exp_hljh[key], actual_hljh[key], 2)
+                np.testing.assert_almost_equal(exp_tyst[key], actual_tyst[key])
 
     @pytest.mark.skip(os.environ.get("IS_GITHUB"))
     async def test_issue_with_local_omicron(self):
@@ -1126,73 +1207,80 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_query_market_values(self):
         broker = Broker("test", 1_000_000, 1e-4, mar1, mar14)
-        positions = np.array([
-            (mar1, tyst, 500, 0, 0),
-            (mar2, tyst, 1000, 500, 0),
-            (mar3, hljh, 500, 500, 0),
-            (mar3, tyst, 1000, 1000, 0),
-            (mar4, hljh, 500, 500, 0),
-            (mar7, None, 0, 0, 0)
-        ], dtype=daily_position_dtype)
+        positions = np.array(
+            [
+                (mar1, tyst, 500, 0, 0),
+                (mar2, tyst, 1000, 500, 0),
+                (mar3, hljh, 500, 500, 0),
+                (mar3, tyst, 1000, 1000, 0),
+                (mar4, hljh, 500, 500, 0),
+                (mar7, None, 0, 0, 0),
+            ],
+            dtype=daily_position_dtype,
+        )
 
-        tyst_bars = np.array([
-                    (mar1, 10), #3月2日起停牌一天
-                    (mar3, 8),
-                    (mar4, 7),
-                    (mar7, 6),
-                    (mar8, 5)],
-                    dtype=[("frame", "datetime64[s]"), ("close", "<f4")])
-        hljh_bars = np.array([
-                        (mar1, 10),
-                        (mar2, 20), # 3号停牌
-                        (mar4, 30),
-                        (mar7, 30),
-                        (mar8, 30)],
-                    dtype=[("frame", "datetime64[s]"), ("close", "<f4")])
-        
+        tyst_bars = np.array(
+            [(mar1, 10), (mar3, 8), (mar4, 7), (mar7, 6), (mar8, 5)],  # 3月2日起停牌一天
+            dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
+        )
+        hljh_bars = np.array(
+            [(mar1, 10), (mar2, 20), (mar4, 30), (mar7, 30), (mar8, 30)],  # 3号停牌
+            dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
+        )
+
         # 1. forward to mar2 and query to mar2
         broker._positions = positions[:2]
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars[:1],
-                hljh: hljh_bars[:2]
+                hljh: hljh_bars[:2],
             }.items()
             mv = await broker._query_market_values(mar1, mar2)
             self.assertListEqual([5000, 10000], mv.tolist())
 
         # 2. forward to mar3 and query to mar2
         broker._positions = positions[:4]
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars[:1],
-                hljh: hljh_bars[:2]
+                hljh: hljh_bars[:2],
             }.items()
             mv = await broker._query_market_values(mar1, mar2)
             self.assertListEqual([5000, 10000], mv.tolist())
-        
+
         # 4. forwar to mar7, query to mar4
         broker._positions = positions
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars[:3],
-                hljh: hljh_bars[:3]
+                hljh: hljh_bars[:3],
             }.items()
             mv = await broker._query_market_values(mar1, mar4)
             self.assertListEqual([5000, 10000, 18000, 15000], mv.tolist())
 
         # 5. forward to mar7 and query to mar7
         broker._positions = positions
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars[:-1],
-                hljh: hljh_bars[:-1]
+                hljh: hljh_bars[:-1],
             }.items()
             mv = await broker._query_market_values(mar1, mar7)
             self.assertListEqual([5000, 10000, 18000, 15000, 0], mv.tolist())
 
         # 6. forward to mar14 (backtest end) and query to mar8
         broker._positions = positions
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars,
                 hljh: hljh_bars,
@@ -1202,13 +1290,17 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
         # 7. forward to mar14 (backtest end) and query to mar14
         broker._positions = positions
-        with mock.patch("omicron.models.stock.Stock.batch_get_day_level_bars_in_range") as mocked:
+        with mock.patch(
+            "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
+        ) as mocked:
             mocked.return_value.__aiter__.return_value = {
                 tyst: tyst_bars,
                 hljh: hljh_bars,
             }.items()
             mv = await broker._query_market_values(mar1, mar14)
-            self.assertListEqual([5000, 10000, 18000, 15000, 0, 0, 0, 0, 0, 0], mv.tolist())
+            self.assertListEqual(
+                [5000, 10000, 18000, 15000, 0, 0, 0, 0, 0, 0], mv.tolist()
+            )
 
     async def test_bills(self):
         start = datetime.date(2022, 3, 1)
@@ -1249,10 +1341,12 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_match_bid(self):
         # 仅使用frame
-        bars = bars_from_csv("hljh", '1m', 2, 241)[["frame", "close", "volume"]].astype(match_data_dtype)[:20]
-        bars["price"] = [10 + i/100 for i in range(20)]
+        bars = bars_from_csv("hljh", "1m", 2, 241)[["frame", "close", "volume"]].astype(
+            match_data_dtype
+        )[:20]
+        bars["price"] = [10 + i / 100 for i in range(20)]
         bars["volume"] = np.arange(1, 21)
-        
+
         start = datetime.date(2022, 3, 1)
         end = datetime.date(2022, 3, 14)
         broker = Broker("test", 1e6, 1e-4, start, end)
@@ -1271,7 +1365,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
 
     def test_remove_for_buy(self):
         order_time = datetime.datetime(2022, 3, 1, 9, 31)
-        bars = bars_from_csv("hljh", '1m', 2, 241)
+        bars = bars_from_csv("hljh", "1m", 2, 241)
         bars = bars[["frame", "close", "volume"]].astype(match_data_dtype)
         buy_limit_price = 9.5
         sell_limit_price = 9.09
@@ -1280,16 +1374,20 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         end = datetime.date(2022, 3, 14)
         broker = Broker("test", 1e6, 1e-4, start, end)
 
-        bars = broker._remove_for_buy(hljh, order_time, bars, 9.22, buy_limit_price, sell_limit_price)
+        bars = broker._remove_for_buy(
+            hljh, order_time, bars, 9.22, buy_limit_price, sell_limit_price
+        )
         self.assertEqual(10, len(bars))
 
         # where meet sell limit is changed to 1e20
         self.assertAlmostEqual(1e20, bars[3]["volume"])
 
         # 2. 全部为涨停价
-        bars["price"] = 9   
+        bars["price"] = 9
         with self.assertRaises(BuylimitError):
-            bars = broker._remove_for_buy(hljh, order_time, bars, 9.22, 9, sell_limit_price)
+            bars = broker._remove_for_buy(
+                hljh, order_time, bars, 9.22, 9, sell_limit_price
+            )
             pass
 
     def test_remove_for_sell(self):
@@ -1303,16 +1401,20 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         sell_limit_price = 9.09
 
         # 1. 部分触及跌停
-        bars = bars_from_csv("hljh", '1m', 2, 241)
+        bars = bars_from_csv("hljh", "1m", 2, 241)
         bars = bars[["frame", "close", "volume"]].astype(match_data_dtype)
         bars["price"][20:] = 9.09
         bars["price"][3] = buy_limit_price
-        bars = broker._remove_for_sell(hljh, order_time, bars, 9.10, sell_limit_price, buy_limit_price)
+        bars = broker._remove_for_sell(
+            hljh, order_time, bars, 9.10, sell_limit_price, buy_limit_price
+        )
         self.assertEqual(20, len(bars))
         self.assertEqual(1e20, bars[3]["volume"])
 
         # 2. 全部为跌停价
         bars["price"] = sell_limit_price
         with self.assertRaises(SellLimitError):
-            bars = broker._remove_for_sell(hljh, order_time, bars, 9.22, sell_limit_price, buy_limit_price)
+            bars = broker._remove_for_sell(
+                hljh, order_time, bars, 9.22, sell_limit_price, buy_limit_price
+            )
             pass

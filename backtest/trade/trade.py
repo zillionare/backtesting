@@ -18,7 +18,7 @@ class Trade:
         eid: str,
         security: str,
         price: float,
-        shares: Union[float,int],
+        shares: Union[float, int],
         fee: float,
         side: EntrustSide,
         time: datetime.datetime,

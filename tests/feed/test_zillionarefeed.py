@@ -17,6 +17,7 @@ from tests import data_populate
 
 hljh = "002537.XSHE"
 
+
 def disable_listeners():
     """these listener will cause omicron to be closed"""
     app = Sanic.get_app("backtest")
@@ -108,30 +109,36 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
             "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
         ) as mocked:
             mocked.return_value.__aiter__.return_value = {
-                "603717.XSHG": np.array([], dtype=[("frame", "datetime64[s]"), ("close", "<f4")])
+                "603717.XSHG": np.array(
+                    [], dtype=[("frame", "datetime64[s]"), ("close", "<f4")]
+                )
             }.items()
 
             price = await self.feed.batch_get_close_price_in_range(
                 ["603717.XSHG"], start, end
             )
 
-            np.testing.assert_array_almost_equal(
-                price["603717.XSHG"], [13.7] * 4
-            )
+            np.testing.assert_array_almost_equal(price["603717.XSHG"], [13.7] * 4)
 
             # more than one sec, 其中一个从头停牌，返回停牌前一天数据
             with mock.patch(
                 "omicron.models.stock.Stock.batch_get_day_level_bars_in_range"
             ) as mocked:
                 mocked.return_value.__aiter__.return_value = {
-                    "603717.XSHG": np.array([
-                        (datetime.date(2022, 3, 10), 9.3),
-                    ], dtype=[("frame", "datetime64[s]"), ("close", "<f4")]),
-                    "002537.XSHE": np.array([
-                        (datetime.date(2022, 3, 9), 10.20),
-                        (datetime.date(2022, 3, 11), 10.21),
-                        (datetime.date(2022, 3, 14), 10.22)
-                    ], dtype=[("frame", "datetime64[s]"), ("close", "<f4")])
+                    "603717.XSHG": np.array(
+                        [
+                            (datetime.date(2022, 3, 10), 9.3),
+                        ],
+                        dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
+                    ),
+                    "002537.XSHE": np.array(
+                        [
+                            (datetime.date(2022, 3, 9), 10.20),
+                            (datetime.date(2022, 3, 11), 10.21),
+                            (datetime.date(2022, 3, 14), 10.22),
+                        ],
+                        dtype=[("frame", "datetime64[s]"), ("close", "<f4")],
+                    ),
                 }.items()
 
                 price = await self.feed.batch_get_close_price_in_range(
@@ -143,10 +150,10 @@ class ZillionareFeedTest(unittest.IsolatedAsyncioTestCase):
                 np.testing.assert_array_almost_equal(
                     price["002537.XSHE"], [10.20, 10.20, 10.21, 10.22]
                 )
-                frames = [tf.int2date(f) for f in tf.get_frames(start, end, FrameType.DAY)]
+                frames = [
+                    tf.int2date(f) for f in tf.get_frames(start, end, FrameType.DAY)
+                ]
                 np.testing.assert_array_equal(price.index, frames)
-
-
 
     async def test_get_trade_price_limits(self):
         """also test get_dr_factor"""

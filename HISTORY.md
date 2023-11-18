@@ -5,6 +5,7 @@
 
 ## 0.5.0
     * [#36](https://github.com/zillionare/backtesting/issues/36) 修复因复权引起的资产波动
+    * 增加了保存回测状态和加载回测状态接口。
     * refactor:
       * 使用dataframe乘法加快市值计算
       * fillup_* 几个接口改为forward_*接口

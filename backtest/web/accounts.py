@@ -22,14 +22,18 @@ cfg = cfg4py.get_instance()
 admin_start_end_dt = datetime.date(2099, 9, 9)
 
 backtest_index_file = os.path.join(home_dir(), "backtest.index.json")
+
+
 class Accounts:
     _brokers: Dict[str, Broker] = {}
     _state_index = {}
 
     def on_startup(self):
         token = cfg.auth.admin
-        self._brokers[token] = Broker("admin", 0, 0.0, admin_start_end_dt,admin_start_end_dt)
-    
+        self._brokers[token] = Broker(
+            "admin", 0, 0.0, admin_start_end_dt, admin_start_end_dt
+        )
+
         try:
             with open(backtest_index_file, "r") as f:
                 self._state_index = json.load(f)
@@ -42,7 +46,7 @@ class Accounts:
         with open(backtest_index_file, "w") as f:
             json.dump(self._state_index, f)
 
-    def get_broker(self, token:str)->Union[None, Broker]:
+    def get_broker(self, token: str) -> Union[None, Broker]:
         return self._brokers.get(token)
 
     def is_valid(self, token: str):
@@ -113,7 +117,9 @@ class Accounts:
     def delete_accounts(self, account_to_delete: Optional[str] = None):
         if account_to_delete is None:
             self._brokers = {}
-            self._brokers[cfg.auth.admin] = Broker("admin", 0, 0.0, admin_start_end_dt,admin_start_end_dt)
+            self._brokers[cfg.auth.admin] = Broker(
+                "admin", 0, 0.0, admin_start_end_dt, admin_start_end_dt
+            )
             return 0
         else:
             for token, broker in self._brokers.items():
@@ -126,9 +132,16 @@ class Accounts:
                 logger.warning("账户%s不存在", account_to_delete)
                 return len(self._brokers)
 
-    def save_backtest(self, name_prefix: str, strategy_params: Optional[dict], token:str, baseline:str="399300.XSHE")->str:
+    async def save_backtest(
+        self,
+        name_prefix: str,
+        strategy_params: Optional[dict],
+        token: str,
+        baseline: str = "399300.XSHE",
+        desc: str = "",
+    ) -> str:
         """保存回测数据及参数
-        
+
         Args:
             name_prefix: 策略名前缀
             strategy_params: 策略参数
@@ -139,45 +152,47 @@ class Accounts:
             name = name_prefix + uuid.uuid4().hex[:4]
             if name not in self._state_index:
                 break
-        
-        state_file = os.path.join(home_dir(), name + '.pkl')
+
+        state_file = os.path.join(home_dir(), name + ".pkl")
         broker = self.get_broker(token)
         if broker is None:
             raise BadParamsError(f"cannot found backtest represented by {token}")
-        
-        if broker._bt_stopped:
+
+        if not broker._bt_stopped:
             raise TradeError("call `stop_backtest` first!")
-        
+
         with open(state_file, "wb") as f:
-            pickle.dump({
-                "name": name,
-                "bills": broker.bills(),
-                "metrics": broker.metrics(baseline=baseline),
-                "params": strategy_params or {}
-            }, f)
-            
-        self._state_index[name] = {
-            "token": token
-        }
+            pickle.dump(
+                {
+                    "name": name,
+                    "bills": broker.bills(),
+                    "metrics": await broker.metrics(baseline=baseline),
+                    "params": strategy_params or {},
+                    "desc": desc,
+                },
+                f,
+            )
+
+        self._state_index[name] = {"token": token}
 
         with open(backtest_index_file, "w") as f:
             json.dump(self._state_index, f)
 
         return name
 
-    def load_backtest(self, name: str, token:str)->Any:
+    def load_backtest(self, name: str, token: str) -> Any:
         """从磁盘加载已保存的回测
-        
+
         Args:
             name: name of the backtest used to save the backtest
             token: token used to validate the request
         """
-        if not name in self._state_index:
+        if name not in self._state_index:
             raise BadParamsError(f"{name} not exists")
-        
-        if token != self._state_index[name]:
-            raise BadParamsError(f"token is incorrect")
-        
+
+        if token != self._state_index[name]["token"]:
+            raise BadParamsError("token is incorrect")
+
         state_file = os.path.join(home_dir(), name + ".pkl")
         with open(state_file, "rb") as f:
             return pickle.load(f)

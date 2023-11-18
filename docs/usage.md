@@ -5,4 +5,4 @@
 
 ## 服务器配置
 
-服务器配置文件使用yaml格式。请参见[配置文件](/installation#配置文件)一节。
+服务器配置文件使用yaml格式。请参见[配置文件](/latest/installation#配置文件)一节。
