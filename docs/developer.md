@@ -24,6 +24,12 @@ docker network connect --alias influxdb tox-bt-net tox-influxdb
 docker network connect --alias bt tox-bt-net tox-bt
 ```
 
+然后，可以通过traderclient项目下的test来进行测试：
+
+```
+tox -e py38
+```
+
 提供的数据包含了天域生态、海联金汇到3月1日到3月14日止的日线和分钟线和涨跌停价格，用以撮合成交和提供收盘价数据（未复权，带复权因子）。
 
 注意这里启动backtest容器的参数与正式运行略有不同，即多了一个`-e MODE=TEST`参数。通过这个参数，容器在启动时，将执行以下脚本：
