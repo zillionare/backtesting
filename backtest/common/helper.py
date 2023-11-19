@@ -9,10 +9,12 @@ from omicron.core.backtestlog import BacktestLogger
 from sanic import Sanic, response
 from tabulate import tabulate
 
-seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
-
 logger = BacktestLogger.getLogger(__name__)
 
+seen_requests = ExpiringDict(max_len=1000, max_age_seconds=10 * 60)
+
+def get_exception_traceback_str(e: Exception) -> str:
+    return ''.join(traceback.format_exception(None, e, e.__traceback__))
 
 def get_app_context():
     app = Sanic.get_app("backtest")
@@ -84,6 +86,7 @@ def protected(wrapped):
                         return response.json(e.as_json(), status=499)
                     else:
                         e2 = TradeError(str(e))
+                        e2.stack = get_exception_traceback_str(e)
                         return response.json(e2.as_json(), status=499)
             elif not is_authenticated:
                 logger.warning("token is invalid: [%s]", request.token)
