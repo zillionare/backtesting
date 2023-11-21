@@ -682,7 +682,7 @@ class Broker:
         return await self._after_buy(en, mean_price, filled, close_time)
 
     def _match_bid(
-        self, bid_queue, shares_to_buy
+        self, bid_queue, shares_to_bid
     ) -> Tuple[float, float, datetime.datetime]:
         """计算此次买入的成交均价和成交量
 
@@ -698,14 +698,14 @@ class Broker:
         cum_v = np.cumsum(v)
 
         # until i the order can be filled
-        where_total_filled = np.argwhere(cum_v >= shares_to_buy)
+        where_total_filled = np.argwhere(cum_v >= shares_to_bid)
         if len(where_total_filled) == 0:
             i = len(v) - 1
         else:
             i = np.min(where_total_filled)
 
         # 也许到当天结束，都没有足够的股票
-        filled = min(cum_v[i], shares_to_buy) // 100 * 100
+        filled = min(cum_v[i], shares_to_bid)
 
         # 最后一周期，只需要成交剩余的部分
         vol = v[: i + 1].copy()
@@ -1336,7 +1336,7 @@ class Broker:
         # 计算参考标的的相关指标
         if baseline is not None:
             ref_bars = await Stock.get_bars_in_range(
-                baseline, FrameType.DAY, start, end
+                baseline, FrameType.DAY, self.bt_start, self.bt_end
             )
 
             if ref_bars.size < 2:
@@ -1345,6 +1345,9 @@ class Broker:
                 returns = ref_bars["close"][1:] / ref_bars["close"][:-1] - 1
 
                 ref_results = {
+                    "start": self.bt_start,
+                    "end": self.bt_end,
+                    "window": tf.count_day_frames(self.bt_start, self.bt_end),
                     "total_profit_rate": cum_returns_final(returns),
                     "win_rate": np.count_nonzero(returns > 0) / len(returns),
                     "mean_return": np.mean(returns).item(),

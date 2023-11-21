@@ -3,6 +3,10 @@
 !!! Info
     `(#{number})` means an issue of this project. You may check details of the issue by visiting https://github.com/zillionare/backtesting/issues/_{number}_
 
+## 0.5.1 
+    * [[#38](https://github.com/zillionare/backtesting/issues/38)] 修复
+    * 卖出时，委托量可不为100的倍数
+    * metrics中baseline增加start, end和window字段，与策略相区别
 ## 0.5.0
     * [#36](https://github.com/zillionare/backtesting/issues/36) 修复因复权引起的资产波动
     * 增加了保存回测状态和加载回测状态接口。

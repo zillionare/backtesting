@@ -54,3 +54,11 @@ influxdb:
   bucket_name: my-bucket
   enable_compress: true
   max_query_size: 150000
+
+# influxdb:
+#   url: http://192.168.100.101:58086
+#   token: hwxHycJfp_t6bCOYe2MhEDW4QBOO4FDtgeBWnPR6bGZJGEZ_41m_OHtTJFZKyD2HsbVqkZM8rJNkMvjyoXCG6Q==
+#   org: zillionare
+#   bucket_name: zillionare
+#   enable_compress: true
+#   max_query_size: 5000

@@ -609,6 +609,9 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
             "annual_return": -0.010133682791748755,
             "volatility": 0.02850594795764624,
             "baseline": {
+                "start": datetime.date(2022, 3, 1),
+                "end": datetime.date(2022, 3, 14),
+                "window": 10,
                 "total_profit_rate": 0.006315946578979492,
                 "win_rate": 0.5555555555555556,
                 "mean_return": 0.0028306511,
@@ -1354,7 +1357,7 @@ class BrokerTest(unittest.IsolatedAsyncioTestCase):
         # 1. 直到当天结束，都没有足够的票
         mp, filled, frame = broker._match_bid(bars, 300)
         self.assertAlmostEqual(mp, 10.1235, 2)
-        self.assertEqual(filled, 200)
+        self.assertEqual(filled, 210)
         self.assertEqual(frame, datetime.datetime(2022, 3, 1, 9, 50))
 
         # 2. 当天未结束即凑够

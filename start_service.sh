@@ -17,7 +17,7 @@ sudo docker exec -i tox-influxdb bash -c 'influx setup --username my-user --pass
 
 sleep 3
 
-sudo docker run -d --name tox-bt -e MODE=TEST -e PORT=3180 -p 3180:3180 backtest
+sudo docker run -d --name tox-bt -e MODE=TEST -e PORT=3180 -p 3180:3180 --env-file ./.env backtest
 
 sudo docker network create tox-bt-net
 sudo docker network connect --alias redis tox-bt-net tox-redis

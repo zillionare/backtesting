@@ -75,11 +75,11 @@ feed:
 postgres:
   enabled: false
 redis:
-  dsn: redis://redis:6379
+  dsn: redis://${REDIS_HOST}:${REDIS_PORT}
 influxdb:
-  url: http://influxdb:8086
-  token: hwxHycJfp_t6bCOYe2MhEDW4QBOO4FDtgeBWnPR6bGZJGEZ_41m_OHtTJFZKyD2HsbVqkZM8rJNkMvjyoXCG6Q==
-  org: zillonare
-  bucket_name: zillonare
+  url: ${INFLUXDB_URL}
+  token: ${INFLUXDB_TOKEN}
+  org: ${INFLUXDB_ORG}
+  bucket_name: ${INFLUXDB_BUCKET}
   enable_compress: true
   max_query_size: 5000
