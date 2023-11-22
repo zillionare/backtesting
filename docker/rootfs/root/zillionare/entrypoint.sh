@@ -20,11 +20,6 @@ if [ $MODE = "TEST" ]; then
     export __cfg4py_server_role__=TEST;python3 -m backtest.app start $PORT
 fi
 
-if [ ! -f /config/defaults.yaml ]; then
-    echo "config file not found, exiting"
-    return
-fi
-
 # update backtest upon restart
 pip3 install --pre zillionare-backtest --default-timeout=300 -i https://pypi.tuna.tsinghua.edu.cn/simple
 echo "port passed through envar: $PORT" > /var/log/backtest/backtest.log
