@@ -2,7 +2,6 @@
 FROM ubuntu:20.04
 WORKDIR /
 COPY rootfs ./
-VOLUME config
 VOLUME /var/log/backtest
 
 ARG version
