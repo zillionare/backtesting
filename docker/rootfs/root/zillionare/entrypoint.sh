@@ -2,8 +2,7 @@
 
 echo
 echo
-ASYNC_TIMEOUT=`pip3 list |grep async-timeout`
-echo "mode is $MODE, async-timeout is $ASYNC_TIMEOUT"
+echo "mode is $MODE"
 
 if [ $MODE = "TEST" ]; then
     if [ ! -f /root/.zillionare/backtest/config/defaults.yaml ]; then
@@ -21,7 +20,14 @@ if [ $MODE = "TEST" ]; then
 fi
 
 # update backtest upon restart
-pip3 install --pre zillionare-backtest --default-timeout=300 -i https://pypi.tuna.tsinghua.edu.cn/simple
+if [ $AUTO_UPGRADE == "TRUE" ]; then
+    if [ $ALLOW_PRE == "TRUE" ]; then
+        pip3 install --pre zillionare-backtest --default-timeout=300 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    else
+        pip3 install zillionare-backtest --default-timeout=300 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    fi
+fi
+
 echo "port passed through envar: $PORT" > /var/log/backtest/backtest.log
 
 python3 -m backtest.app start $PORT
